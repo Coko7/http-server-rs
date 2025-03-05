@@ -19,7 +19,7 @@ pub struct HttpRequest {
     pub version: HttpVersion,
 
     pub url: String,
-    pub query_params: HashMap<String, String>,
+    pub query: HashMap<String, String>,
 
     pub headers: HashMap<String, String>,
     pub body: Option<String>,
@@ -84,7 +84,7 @@ impl HttpRequest {
             version,
             verb,
             resource_path,
-            query_params,
+            query: query_params,
             url,
         })
     }

@@ -40,9 +40,6 @@ pub struct WebServer {
 impl WebServer {
     pub fn new(hostname: &str) -> Result<Self> {
         let listener = TcpListener::bind(hostname).unwrap();
-        info!("server started on {}", hostname);
-        info!("awaiting connections...");
-
         Ok(WebServer {
             hostname: hostname.to_string(),
             routes: HashMap::new(),
@@ -51,12 +48,15 @@ impl WebServer {
     }
 
     pub fn run(&self) -> Result<()> {
+        info!("server started on {}", self.hostname);
+        info!("awaiting connections...");
+
         for stream in self.listener.incoming() {
             debug!("{}", "new connection!".green());
-            let stream = stream.unwrap();
+            let stream = stream?;
             let result = self.handle_connection(stream);
             if let Err(result) = result {
-                let error = format!("Error: {}", result);
+                let error = format!("error: {}", result);
                 error!("{}", error.red());
             }
         }
@@ -91,26 +91,25 @@ impl WebServer {
 
         debug!("{}", "response sent!".blue());
 
-        stream.write_all(response.as_bytes()).unwrap();
+        stream.write_all(response.as_bytes())?;
         Ok(())
     }
 
     fn handle_request(&self, request: &HttpRequest) -> Result<HttpResponse> {
-        debug!("VERB: {}, URL: {}", request.verb.to_string(), request.url);
-
-        let route = format!("{} {}", request.verb.to_string(), request.url);
-        let route = Route::from_str(&route)?;
+        let route_def = format!("{} {}", request.verb.to_string(), request.url);
+        let route = Route::from_str(&route_def)?;
+        debug!("route: {route_def}");
 
         let response = if let Some(route_callback) = self.routes.get(&route) {
             route_callback(request)
         } else {
-            Err(anyhow!("cant match route"))
+            Err(anyhow!("unsupported route: {route_def}"))
         };
 
         response
     }
 
-    pub fn register(
+    pub fn route(
         mut self,
         route_def: &str,
         callback: fn(&HttpRequest) -> Result<HttpResponse>,
@@ -119,7 +118,7 @@ impl WebServer {
 
         if self.routes.contains_key(&route) {
             return Err(anyhow!(
-                "cannot register route {:?} because a route already exists",
+                "cannot register route {:?} because a similar route already exists",
                 route
             ));
         }
