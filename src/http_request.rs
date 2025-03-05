@@ -1,3 +1,4 @@
+use anyhow::Result;
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Read},
@@ -6,18 +7,22 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::http::{get_http_version, HttpVersion};
+use crate::http::{parse_http_request_start_line, HttpVerb, HttpVersion};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpRequest {
     pub start_line: String,
+
+    pub verb: HttpVerb,
+    pub resource_path: String,
+    pub version: HttpVersion,
+
     pub headers: HashMap<String, String>,
     pub body: Option<String>,
-    pub version: HttpVersion,
 }
 
 impl HttpRequest {
-    pub fn from_tcp(stream: &TcpStream) -> anyhow::Result<HttpRequest> {
+    pub fn from_tcp(stream: &TcpStream) -> Result<HttpRequest> {
         let mut buf_reader = BufReader::new(stream);
 
         let mut start_line = String::new();
@@ -26,7 +31,7 @@ impl HttpRequest {
 
         buf_reader.read_line(&mut start_line)?;
 
-        let version = get_http_version(&start_line)?;
+        let (verb, resource_path, version) = parse_http_request_start_line(&start_line)?;
         if version != HttpVersion::HTTP0_9 {
             let mut line = String::new();
             while buf_reader.read_line(&mut line)? > 0 {
@@ -58,6 +63,8 @@ impl HttpRequest {
             headers,
             body,
             version,
+            verb,
+            resource_path,
         })
     }
 }

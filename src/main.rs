@@ -33,8 +33,12 @@ fn handle_connection(mut stream: TcpStream) -> anyhow::Result<()> {
     let request = HttpRequest::from_tcp(&stream)?;
 
     println!("{}", ">>> Request START <<<".red());
-    println!("{}", request.start_line);
-    println!("{:?}", request.version);
+    println!(
+        "{} {} {}",
+        request.verb.to_string(),
+        request.resource_path,
+        request.version.to_string()
+    );
 
     println!("{}", ">>> HEADERS <<<".red());
     for (key, value) in request.headers.iter() {

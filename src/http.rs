@@ -2,27 +2,90 @@ use anyhow::{anyhow, Context};
 use serde::{Deserialize, Serialize};
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub enum HttpVerb {
+    GET,
+    HEAD,
+    POST,
+    PUT,
+    DELETE,
+    CONNECT,
+    OPTIONS,
+    TRACE,
+    PATCH,
+}
+
+impl ToString for HttpVerb {
+    fn to_string(&self) -> String {
+        match self {
+            HttpVerb::GET => "GET",
+            HttpVerb::HEAD => "HEAD",
+            HttpVerb::POST => "POST",
+            HttpVerb::PUT => "PUT",
+            HttpVerb::DELETE => "DELETE",
+            HttpVerb::CONNECT => "CONNECT",
+            HttpVerb::OPTIONS => "OPTIONS",
+            HttpVerb::TRACE => "TRACE",
+            HttpVerb::PATCH => "PATCH",
+        }
+        .to_string()
+    }
+}
+
+#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum HttpVersion {
     HTTP0_9,
     HTTP1_0,
     HTTP1_1,
 }
 
-pub fn get_http_version(start_line: &str) -> anyhow::Result<HttpVersion> {
+impl ToString for HttpVersion {
+    fn to_string(&self) -> String {
+        match self {
+            HttpVersion::HTTP0_9 => "",
+            HttpVersion::HTTP1_0 => "HTTP/1.0",
+            HttpVersion::HTTP1_1 => "HTTP/1.1",
+        }
+        .to_string()
+    }
+}
+
+pub fn parse_http_request_start_line(
+    start_line: &str,
+) -> anyhow::Result<(HttpVerb, String, HttpVersion)> {
     let mut parts = start_line.split(" ").into_iter();
 
-    let _verb = parts.next().context("start line should have HTTP verb")?;
-    let _resource_path = parts
+    let verb = match parts
         .next()
-        .context("start line should have resource path")?;
+        .context("start line should have HTTP verb")?
+        .trim()
+    {
+        "GET" => HttpVerb::GET,
+        "HEAD" => HttpVerb::HEAD,
+        "POST" => HttpVerb::POST,
+        "PUT" => HttpVerb::PUT,
+        "DELETE" => HttpVerb::DELETE,
+        "CONNECT" => HttpVerb::CONNECT,
+        "OPTIONS" => HttpVerb::OPTIONS,
+        "TRACE" => HttpVerb::TRACE,
+        "PATCH" => HttpVerb::PATCH,
+        value => return Err(anyhow!("unknown http verb: {}", value)),
+    };
 
-    if let Some(version) = parts.next() {
-        return match version.trim() {
-            "HTTP/1.0" => Ok(HttpVersion::HTTP1_0),
-            "HTTP/1.1" => Ok(HttpVersion::HTTP1_1),
-            _ => Err(anyhow!("unsupported HTTP version: {}", version)),
-        };
+    let resource_path = parts
+        .next()
+        .context("start line should have resource path")?
+        .trim()
+        .to_string();
+
+    let version = if let Some(version) = parts.next() {
+        match version.trim() {
+            "HTTP/1.0" => HttpVersion::HTTP1_0,
+            "HTTP/1.1" => HttpVersion::HTTP1_1,
+            value => return Err(anyhow!("unsupported HTTP version: {}", value)),
+        }
     } else {
-        return Ok(HttpVersion::HTTP0_9);
-    }
+        HttpVersion::HTTP0_9
+    };
+
+    Ok((verb, resource_path, version))
 }
