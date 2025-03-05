@@ -1,7 +1,9 @@
-use anyhow::{anyhow, Context};
+use std::str::FromStr;
+
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Hash, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum HttpVerb {
     GET,
     HEAD,
@@ -12,6 +14,25 @@ pub enum HttpVerb {
     OPTIONS,
     TRACE,
     PATCH,
+}
+
+impl FromStr for HttpVerb {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s {
+            "GET" => HttpVerb::GET,
+            "HEAD" => HttpVerb::HEAD,
+            "POST" => HttpVerb::POST,
+            "PUT" => HttpVerb::PUT,
+            "DELETE" => HttpVerb::DELETE,
+            "CONNECT" => HttpVerb::CONNECT,
+            "OPTIONS" => HttpVerb::OPTIONS,
+            "TRACE" => HttpVerb::TRACE,
+            "PATCH" => HttpVerb::PATCH,
+            value => return Err(anyhow!("unknown http verb: {}", value)),
+        })
+    }
 }
 
 impl ToString for HttpVerb {
@@ -38,6 +59,19 @@ pub enum HttpVersion {
     HTTP1_1,
 }
 
+impl FromStr for HttpVersion {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s {
+            "" => HttpVersion::HTTP0_9,
+            "HTTP/1.0" => HttpVersion::HTTP1_0,
+            "HTTP/1.1" => HttpVersion::HTTP1_1,
+            value => return Err(anyhow!("unsupported HTTP version: {}", value)),
+        })
+    }
+}
+
 impl ToString for HttpVersion {
     fn to_string(&self) -> String {
         match self {
@@ -49,27 +83,15 @@ impl ToString for HttpVersion {
     }
 }
 
-pub fn parse_http_request_start_line(
-    start_line: &str,
-) -> anyhow::Result<(HttpVerb, String, HttpVersion)> {
+pub fn parse_http_request_start_line(start_line: &str) -> Result<(HttpVerb, String, HttpVersion)> {
     let mut parts = start_line.split(" ").into_iter();
 
-    let verb = match parts
+    let verb = parts
         .next()
         .context("start line should have HTTP verb")?
-        .trim()
-    {
-        "GET" => HttpVerb::GET,
-        "HEAD" => HttpVerb::HEAD,
-        "POST" => HttpVerb::POST,
-        "PUT" => HttpVerb::PUT,
-        "DELETE" => HttpVerb::DELETE,
-        "CONNECT" => HttpVerb::CONNECT,
-        "OPTIONS" => HttpVerb::OPTIONS,
-        "TRACE" => HttpVerb::TRACE,
-        "PATCH" => HttpVerb::PATCH,
-        value => return Err(anyhow!("unknown http verb: {}", value)),
-    };
+        .trim();
+
+    let verb = HttpVerb::from_str(verb)?;
 
     let resource_path = parts
         .next()
@@ -78,11 +100,7 @@ pub fn parse_http_request_start_line(
         .to_string();
 
     let version = if let Some(version) = parts.next() {
-        match version.trim() {
-            "HTTP/1.0" => HttpVersion::HTTP1_0,
-            "HTTP/1.1" => HttpVersion::HTTP1_1,
-            value => return Err(anyhow!("unsupported HTTP version: {}", value)),
-        }
+        HttpVersion::from_str(version.trim())?
     } else {
         HttpVersion::HTTP0_9
     };
