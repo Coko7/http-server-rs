@@ -8,6 +8,7 @@ use web_server::WebServer;
 mod http;
 mod http_request;
 mod http_response;
+mod thread_pool;
 mod web_server;
 
 fn main() -> anyhow::Result<()> {

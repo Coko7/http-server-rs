@@ -3,7 +3,7 @@ use std::str::FromStr;
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 
-#[derive(Hash, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Hash, PartialEq, Eq, Debug, Serialize, Deserialize, Clone)]
 pub enum HttpVerb {
     GET,
     HEAD,
