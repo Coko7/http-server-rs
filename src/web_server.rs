@@ -10,7 +10,10 @@ use colored::Colorize;
 use log::{debug, error, info};
 
 use crate::{
-    http::HttpVerb, http_request::HttpRequest, http_response::HttpResponse, thread_pool::ThreadPool,
+    http::{HttpVerb, HttpVersion},
+    http_request::HttpRequest,
+    http_response::HttpResponse,
+    thread_pool::ThreadPool,
 };
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
@@ -36,6 +39,7 @@ impl FromStr for Route {
 pub struct WebServer {
     pub hostname: String,
     pub routes: HashMap<Route, fn(&HttpRequest) -> Result<HttpResponse>>,
+    version: HttpVersion,
     listener: TcpListener,
     pool: ThreadPool,
 }
@@ -48,6 +52,7 @@ impl WebServer {
         Ok(WebServer {
             hostname: hostname.to_string(),
             routes: HashMap::new(),
+            version: HttpVersion::HTTP1_1,
             listener,
             pool,
         })
@@ -73,6 +78,11 @@ impl WebServer {
         }
 
         Ok(())
+    }
+
+    pub fn http_version(mut self, version: HttpVersion) -> Self {
+        self.version = version;
+        self
     }
 
     pub fn route(
@@ -105,6 +115,11 @@ fn handle_request(
     let response = if let Some(route_callback) = routes.get(&route) {
         route_callback(request)
     } else {
+        let catch_all_route = Route::from_str("GET /*")?;
+        if let Some(catch_all_callback) = routes.get(&catch_all_route) {
+            return catch_all_callback(request);
+        }
+
         Err(anyhow!("unsupported route: {route_def}"))
     };
 
@@ -137,7 +152,7 @@ fn handle_connection(
 
     debug!("{}", ">>> Request END <<<".red());
 
-    let response = handle_request(&request, &routes)?.to_string();
+    let response = handle_request(&request, &routes)?.to_string()?;
 
     debug!("{}", "response sent!".blue());
 

@@ -1,68 +1,38 @@
 use std::collections::HashMap;
 
-use anyhow::Result;
-use chrono::{DateTime, Utc};
-use serde::Serialize;
+use anyhow::{anyhow, Result};
+use log::debug;
 
+use crate::http::HttpVersion;
+
+#[derive(Debug)]
 pub struct HttpResponse {
-    start_line: String,
-    headers: HashMap<String, String>,
-    body: String,
+    pub version: HttpVersion,
+    pub status: String,
+    pub headers: HashMap<String, String>,
+    pub body: String,
 }
 
 impl HttpResponse {
     pub fn new() -> Self {
-        let response = HttpResponse {
-            start_line: String::new(),
+        HttpResponse {
+            version: HttpVersion::HTTP1_1,
+            status: String::new(),
             headers: HashMap::new(),
             body: String::new(),
         }
-        .set_start_line("HTTP/1.1 200 OK")
-        .unwrap()
-        .set_date(Utc::now())
-        .unwrap();
-
-        response
     }
 
-    pub fn set_start_line(mut self, start_line: &str) -> Result<Self> {
-        self.start_line = start_line.to_string();
-        Ok(self)
+    pub fn start_line(&self) -> String {
+        format!("{} {}", self.version.to_string(), self.status)
     }
 
-    pub fn set_header(mut self, key: &str, value: &str) -> Result<Self> {
-        self.headers.insert(key.to_string(), value.to_string());
-        Ok(self)
-    }
-
-    pub fn set_cookie(mut self, key: &str, value: &str) -> Result<Self> {
-        let cookie = format!("{}={}", key, value);
-        self.headers.insert("Set-Cookie".to_string(), cookie);
-        Ok(self)
-    }
-
-    pub fn set_date(mut self, date: DateTime<Utc>) -> Result<Self> {
-        let date = date.format("%a, %d %b %Y %H:%M:%S UTC").to_string();
-        self = self.set_header("Date", &date)?;
-        Ok(self)
-    }
-
-    pub fn set_html_body(mut self, body: &str) -> Result<Self> {
-        self = self.set_header("Content-Type", "text/html")?;
-        self.body = body.to_string();
-        Ok(self)
-    }
-
-    pub fn set_json_body<T: Serialize>(mut self, body: &T) -> Result<Self> {
-        self = self.set_header("Content-Type", "application/json")?;
-        self.body = serde_json::to_string(&body)?.to_string();
-        Ok(self)
-    }
-}
-
-impl ToString for HttpResponse {
-    fn to_string(&self) -> String {
-        let mut response = format!("{}\r\n", self.start_line.to_string());
+    pub fn to_string(&self) -> Result<String> {
+        if self.status.is_empty() {
+            return Err(anyhow!("status must be set on response"));
+        }
+        let mut response = format!("{}\r\n", self.start_line());
+        debug!("{:?}", response);
 
         for (key, value) in self.headers.iter() {
             let header = format!("{}: {}\r\n", key, value);
@@ -72,6 +42,6 @@ impl ToString for HttpResponse {
         response.push_str("\r\n\r\n");
         response.push_str(&self.body);
 
-        response
+        Ok(response)
     }
 }

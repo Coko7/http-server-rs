@@ -39,7 +39,9 @@ impl HttpRequest {
         let (verb, resource_path, version) = parse_http_request_start_line(&start_line)?;
 
         let query_params = if resource_path.contains("?") {
-            let (_, query_line) = resource_path.split_once('?').unwrap();
+            let (_, query_line) = resource_path
+                .split_once('?')
+                .context("resource path should contain query sep `?`")?;
             parse_query_line(&query_line)?
         } else {
             HashMap::new()

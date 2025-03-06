@@ -54,8 +54,11 @@ impl ToString for HttpVerb {
 
 #[derive(PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub enum HttpVersion {
+    #[serde(rename = "HTTP/0.9")]
     HTTP0_9,
+    #[serde(rename = "HTTP/1.0")]
     HTTP1_0,
+    #[serde(rename = "HTTP/1.1")]
     HTTP1_1,
 }
 
