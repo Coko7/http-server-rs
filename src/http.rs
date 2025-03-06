@@ -4,7 +4,7 @@ use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 
 #[derive(Hash, PartialEq, Eq, Debug, Serialize, Deserialize, Clone)]
-pub enum HttpVerb {
+pub enum HttpMethod {
     GET,
     HEAD,
     POST,
@@ -16,37 +16,37 @@ pub enum HttpVerb {
     PATCH,
 }
 
-impl FromStr for HttpVerb {
+impl FromStr for HttpMethod {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         Ok(match s {
-            "GET" => HttpVerb::GET,
-            "HEAD" => HttpVerb::HEAD,
-            "POST" => HttpVerb::POST,
-            "PUT" => HttpVerb::PUT,
-            "DELETE" => HttpVerb::DELETE,
-            "CONNECT" => HttpVerb::CONNECT,
-            "OPTIONS" => HttpVerb::OPTIONS,
-            "TRACE" => HttpVerb::TRACE,
-            "PATCH" => HttpVerb::PATCH,
+            "GET" => HttpMethod::GET,
+            "HEAD" => HttpMethod::HEAD,
+            "POST" => HttpMethod::POST,
+            "PUT" => HttpMethod::PUT,
+            "DELETE" => HttpMethod::DELETE,
+            "CONNECT" => HttpMethod::CONNECT,
+            "OPTIONS" => HttpMethod::OPTIONS,
+            "TRACE" => HttpMethod::TRACE,
+            "PATCH" => HttpMethod::PATCH,
             value => return Err(anyhow!("unknown http verb: {}", value)),
         })
     }
 }
 
-impl ToString for HttpVerb {
+impl ToString for HttpMethod {
     fn to_string(&self) -> String {
         match self {
-            HttpVerb::GET => "GET",
-            HttpVerb::HEAD => "HEAD",
-            HttpVerb::POST => "POST",
-            HttpVerb::PUT => "PUT",
-            HttpVerb::DELETE => "DELETE",
-            HttpVerb::CONNECT => "CONNECT",
-            HttpVerb::OPTIONS => "OPTIONS",
-            HttpVerb::TRACE => "TRACE",
-            HttpVerb::PATCH => "PATCH",
+            HttpMethod::GET => "GET",
+            HttpMethod::HEAD => "HEAD",
+            HttpMethod::POST => "POST",
+            HttpMethod::PUT => "PUT",
+            HttpMethod::DELETE => "DELETE",
+            HttpMethod::CONNECT => "CONNECT",
+            HttpMethod::OPTIONS => "OPTIONS",
+            HttpMethod::TRACE => "TRACE",
+            HttpMethod::PATCH => "PATCH",
         }
         .to_string()
     }
@@ -86,7 +86,9 @@ impl ToString for HttpVersion {
     }
 }
 
-pub fn parse_http_request_start_line(start_line: &str) -> Result<(HttpVerb, String, HttpVersion)> {
+pub fn parse_http_request_start_line(
+    start_line: &str,
+) -> Result<(HttpMethod, String, HttpVersion)> {
     let mut parts = start_line.split(" ").into_iter();
 
     let verb = parts
@@ -94,7 +96,7 @@ pub fn parse_http_request_start_line(start_line: &str) -> Result<(HttpVerb, Stri
         .context("start line should have HTTP verb")?
         .trim();
 
-    let verb = HttpVerb::from_str(verb)?;
+    let verb = HttpMethod::from_str(verb)?;
 
     let resource_path = parts
         .next()

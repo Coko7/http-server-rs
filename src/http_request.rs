@@ -8,13 +8,13 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::http::{parse_http_request_start_line, HttpVerb, HttpVersion};
+use crate::http::{parse_http_request_start_line, HttpMethod, HttpVersion};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpRequest {
-    pub raw_start_line: String,
+    pub request_line: String,
 
-    pub verb: HttpVerb,
+    pub method: HttpMethod,
     pub resource_path: String,
     pub version: HttpVersion,
 
@@ -80,15 +80,19 @@ impl HttpRequest {
         let body = if body.len() > 0 { Some(body) } else { None };
 
         Ok(HttpRequest {
-            raw_start_line: start_line.trim().to_string(),
+            request_line: start_line.trim().to_string(),
             headers,
             body,
             version,
-            verb,
+            method: verb,
             resource_path,
             query: query_params,
             url,
         })
+    }
+
+    pub fn method(&self) -> &HttpMethod {
+        &self.method
     }
 }
 

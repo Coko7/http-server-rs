@@ -1,15 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{anyhow, Result};
 use log::debug;
 
-use crate::http::HttpVersion;
+use crate::{cookie::HttpCookie, http::HttpVersion};
 
 #[derive(Debug)]
 pub struct HttpResponse {
     pub version: HttpVersion,
     pub status: String,
     pub headers: HashMap<String, String>,
+    // pub cookies: HashSet<HttpCookie>,
     pub body: String,
 }
 
@@ -17,8 +18,9 @@ impl HttpResponse {
     pub fn new() -> Self {
         HttpResponse {
             version: HttpVersion::HTTP1_1,
-            status: String::new(),
+            status: "200 OK".to_string(),
             headers: HashMap::new(),
+            // cookies: HashSet::new(),
             body: String::new(),
         }
     }

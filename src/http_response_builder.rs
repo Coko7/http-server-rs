@@ -18,11 +18,7 @@ impl HttpResponseBuilder {
     }
 
     pub fn new_with_version(version: HttpVersion) -> Result<Self> {
-        HttpResponseBuilder {
-            response: HttpResponse::new(),
-        }
-        .set_date(Utc::now())?
-        .set_version(version)
+        Self::new()?.set_date(Utc::now())?.set_version(version)
     }
 
     pub fn build(self) -> Result<HttpResponse> {

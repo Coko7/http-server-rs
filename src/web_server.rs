@@ -9,16 +9,15 @@ use anyhow::{anyhow, Context, Result};
 use colored::Colorize;
 use log::{debug, error, info};
 
+use crate::http::HttpMethod;
 use crate::{
-    http::{HttpVerb, HttpVersion},
-    http_request::HttpRequest,
-    http_response::HttpResponse,
+    http::HttpVersion, http_request::HttpRequest, http_response::HttpResponse,
     thread_pool::ThreadPool,
 };
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct Route {
-    pub verb: HttpVerb,
+    pub verb: HttpMethod,
     pub path: String,
 }
 
@@ -27,12 +26,15 @@ impl FromStr for Route {
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let (verb, path) = s.split_once(" ").context("route should have: VERB PATH")?;
-        let verb = HttpVerb::from_str(verb)?;
+        let verb = HttpMethod::from_str(verb)?;
 
-        Ok(Route {
-            verb,
-            path: path.to_string(),
-        })
+        let path = if path.ends_with('/') {
+            path.to_string()
+        } else {
+            format!("{}/", path)
+        };
+
+        Ok(Route { verb, path })
     }
 }
 
@@ -108,7 +110,7 @@ fn handle_request(
     request: &HttpRequest,
     routes: &HashMap<Route, fn(&HttpRequest) -> Result<HttpResponse>>,
 ) -> Result<HttpResponse> {
-    let route_def = format!("{} {}", request.verb.to_string(), request.url);
+    let route_def = format!("{} {}", request.method.to_string(), request.url);
     let route = Route::from_str(&route_def)?;
     debug!("route: {route_def}");
 
@@ -135,7 +137,7 @@ fn handle_connection(
     debug!("{}", ">>> Request START <<<".red());
     debug!(
         "{} {} {}",
-        request.verb.to_string(),
+        request.method.to_string(),
         request.resource_path,
         request.version.to_string()
     );
