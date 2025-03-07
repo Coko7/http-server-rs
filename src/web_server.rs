@@ -1,5 +1,4 @@
 use anyhow::{anyhow, Context, Result};
-use colored::Colorize;
 use log::{debug, error, info};
 use std::{
     collections::HashMap,
@@ -63,7 +62,7 @@ impl WebServer {
         info!("awaiting connections...");
 
         for stream in self.listener.incoming() {
-            debug!("{}", "new connection!".green());
+            debug!("{}", "new connection!");
             let stream = stream?;
 
             let routes = self.routes.clone();
@@ -72,7 +71,7 @@ impl WebServer {
                 let result = handle_connection(stream, &routes);
                 if let Err(result) = result {
                     let error = format!("error: {}", result);
-                    error!("{}", error.red());
+                    error!("{}", error);
                 }
             });
         }
@@ -132,29 +131,33 @@ fn handle_connection(
 ) -> Result<()> {
     let request = HttpRequest::from_tcp(&stream)?;
 
-    debug!("{}", ">>> Request START <<<".red());
-    debug!(
-        "{} {} {}",
-        request.method.to_string(),
-        request.resource_path,
-        request.version.to_string()
+    let mut request_dbg = String::new();
+    request_dbg.push_str(">>> Request START <<<\r\n");
+    request_dbg.push_str(
+        format!(
+            "{} {} {}\r\n",
+            request.method.to_string(),
+            request.resource_path,
+            request.version.to_string(),
+        )
+        .as_str(),
     );
 
-    debug!("{}", ">>> HEADERS <<<".red());
+    request_dbg.push_str(">>> HEADERS <<<\r\n");
+
     for (key, value) in request.headers.iter() {
-        debug!("{}: {}", key, value);
+        request_dbg.push_str(format!("{}: {}\r\n", key, value).as_str());
     }
 
     if let Some(ref body) = request.body {
-        debug!("{}", ">>> BODY <<<".red());
-        debug!("{}", body);
+        request_dbg.push_str(">>> BODY <<<\r\n");
+        request_dbg.push_str(format!("{}\r\n", body).as_str());
     }
 
-    debug!("{}", ">>> Request END <<<".red());
+    request_dbg.push_str(">>> Request END <<<\r\n");
+    debug!("{}", request_dbg);
 
     let response = handle_request(&request, &routes)?.to_string()?;
-
-    debug!("{}", "response sent!".blue());
 
     stream.write_all(response.as_bytes())?;
     Ok(())
