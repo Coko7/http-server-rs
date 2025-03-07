@@ -1,14 +1,14 @@
 use anyhow::{Context, Result};
 use log::debug;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Read},
     net::TcpStream,
+    str::FromStr,
 };
 
-use serde::{Deserialize, Serialize};
-
-use crate::http::{parse_http_request_start_line, HttpMethod, HttpVersion};
+use super::{HttpMethod, HttpVersion};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpRequest {
@@ -36,13 +36,13 @@ impl HttpRequest {
         buf_reader.read_line(&mut start_line)?;
 
         debug!("start line: {}", start_line.trim());
-        let (verb, resource_path, version) = parse_http_request_start_line(&start_line)?;
+        let (verb, resource_path, version) = Self::parse_request_line(&start_line)?;
 
         let query_params = if resource_path.contains("?") {
             let (_, query_line) = resource_path
                 .split_once('?')
                 .context("resource path should contain query sep `?`")?;
-            parse_query_line(&query_line)?
+            Self::parse_query_line(&query_line)?
         } else {
             HashMap::new()
         };
@@ -94,16 +94,41 @@ impl HttpRequest {
     pub fn method(&self) -> &HttpMethod {
         &self.method
     }
-}
 
-fn parse_query_line(resource_path: &str) -> Result<HashMap<String, String>> {
-    let mut result = HashMap::new();
-    let query_params = resource_path.split("&");
+    pub fn parse_request_line(start_line: &str) -> Result<(HttpMethod, String, HttpVersion)> {
+        let mut parts = start_line.split(" ").into_iter();
 
-    for param in query_params {
-        let (key, value) = param.split_once('=').context("= should be in query")?;
-        result.insert(key.to_string(), value.to_string());
+        let verb = parts
+            .next()
+            .context("start line should have HTTP verb")?
+            .trim();
+
+        let verb = HttpMethod::from_str(verb)?;
+
+        let resource_path = parts
+            .next()
+            .context("start line should have resource path")?
+            .trim()
+            .to_string();
+
+        let version = if let Some(version) = parts.next() {
+            HttpVersion::from_str(version.trim())?
+        } else {
+            HttpVersion::HTTP0_9
+        };
+
+        Ok((verb, resource_path, version))
     }
 
-    Ok(result)
+    fn parse_query_line(resource_path: &str) -> Result<HashMap<String, String>> {
+        let mut result = HashMap::new();
+        let query_params = resource_path.split("&");
+
+        for param in query_params {
+            let (key, value) = param.split_once('=').context("= should be in query")?;
+            result.insert(key.to_string(), value.to_string());
+        }
+
+        Ok(result)
+    }
 }

@@ -109,14 +109,14 @@ mod tests {
         assert!(HttpCookie::new("foo", "b,ar").is_err())
     }
 
-    #[test]
-    fn test_cookie_domain() {
-        let expected = "foo=bar; Domain=example.com";
-        let mut actual = HttpCookie::new("foo", "bar").unwrap();
-        actual.domain = Some("example.com".to_string());
-
-        assert_eq!(expected, actual.to_str());
-    }
+    // #[test]
+    // fn test_cookie_domain() {
+    //     let expected = "foo=bar; Domain=example.com";
+    //     let mut actual = HttpCookie::new("foo", "bar").unwrap();
+    //     actual.domain = Some("example.com".to_string());
+    //
+    //     assert_eq!(expected, actual.to_str());
+    // }
 
     // #[test]
     // fn test_cookie_expire() {

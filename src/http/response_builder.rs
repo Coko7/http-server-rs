@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use log::debug;
 use serde::Serialize;
 
-use crate::{http::HttpVersion, http_response::HttpResponse};
+use super::{HttpResponse, HttpVersion};
 
 pub struct HttpResponseBuilder {
     response: HttpResponse,

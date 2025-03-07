@@ -1,3 +1,6 @@
+use anyhow::{anyhow, Context, Result};
+use colored::Colorize;
+use log::{debug, error, info};
 use std::{
     collections::HashMap,
     io::Write,
@@ -5,13 +8,8 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{anyhow, Context, Result};
-use colored::Colorize;
-use log::{debug, error, info};
-
-use crate::http::HttpMethod;
 use crate::{
-    http::HttpVersion, http_request::HttpRequest, http_response::HttpResponse,
+    http::{HttpMethod, HttpRequest, HttpResponse, HttpVersion},
     thread_pool::ThreadPool,
 };
 

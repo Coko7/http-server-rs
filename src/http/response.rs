@@ -1,9 +1,9 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use anyhow::{anyhow, Result};
 use log::debug;
 
-use crate::{cookie::HttpCookie, http::HttpVersion};
+use super::HttpVersion;
 
 #[derive(Debug)]
 pub struct HttpResponse {
