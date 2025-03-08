@@ -145,8 +145,8 @@ fn handle_connection(
 
     request_dbg.push_str(">>> HEADERS <<<\r\n");
 
-    for (key, value) in request.headers.iter() {
-        request_dbg.push_str(format!("{}: {}\r\n", key, value).as_str());
+    for header in request.headers.iter() {
+        request_dbg.push_str(format!("{}: {}\r\n", header.name, header.value).as_str());
     }
 
     if let Some(ref body) = request.body {

@@ -2,13 +2,19 @@ use anyhow::{Context, Result};
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     io::{BufRead, BufReader, Read},
     net::TcpStream,
     str::FromStr,
 };
 
-use super::{HttpMethod, HttpVersion};
+use super::{HttpCookie, HttpMethod, HttpVersion};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct HttpHeader {
+    pub name: String,
+    pub value: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpRequest {
@@ -21,7 +27,8 @@ pub struct HttpRequest {
     pub url: String,
     pub query: HashMap<String, String>,
 
-    pub headers: HashMap<String, String>,
+    pub headers: Vec<HttpHeader>,
+    pub cookies: HashSet<HttpCookie>,
     pub body: Option<String>,
 }
 
@@ -30,7 +37,7 @@ impl HttpRequest {
         let mut buf_reader = BufReader::new(stream);
 
         let mut start_line = String::new();
-        let mut headers = HashMap::new();
+        let mut headers = Vec::new();
         let mut body = String::new();
 
         buf_reader.read_line(&mut start_line)?;
@@ -61,14 +68,21 @@ impl HttpRequest {
                 }
 
                 if let Some((key, value)) = line.trim_end().split_once(':') {
-                    headers.insert(key.trim().to_string(), value.trim().to_string());
+                    let header = HttpHeader {
+                        name: key.trim().to_string(),
+                        value: value.trim().to_string(),
+                    };
+                    headers.push(header);
                 }
 
                 line.clear();
             }
 
-            if let Some(content_len) = headers.get("Content-Length") {
-                let content_len: usize = content_len.parse()?;
+            if let Some(content_len) = headers
+                .iter()
+                .find(|header| header.name == "Content-Length")
+            {
+                let content_len: usize = content_len.value.parse()?;
                 if content_len > 0 {
                     let mut buffer = vec![0; content_len];
                     buf_reader.read_exact(&mut buffer)?;
@@ -79,9 +93,19 @@ impl HttpRequest {
 
         let body = if body.len() > 0 { Some(body) } else { None };
 
+        let cookies = headers
+            .iter()
+            .filter(|header| header.name == "Cookie")
+            .map(|cookie| {
+                let (key, value) = cookie.value.split_once("=").unwrap();
+                HttpCookie::new(key, value)
+            })
+            .collect();
+
         Ok(HttpRequest {
             request_line: start_line.trim().to_string(),
             headers,
+            cookies,
             body,
             version,
             method: verb,

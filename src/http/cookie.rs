@@ -2,8 +2,9 @@ use std::hash::{Hash, Hasher};
 
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub enum SameSitePolicy {
     Strict,
     Lax,
@@ -21,11 +22,13 @@ impl ToString for SameSitePolicy {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HttpCookie {
     name: String,
     value: String,
 
     domain: Option<String>,
+    #[serde(skip_serializing, skip_deserializing)]
     expires: Option<DateTime<Utc>>,
     http_only: bool,
     max_age: Option<i32>,
