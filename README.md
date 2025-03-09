@@ -6,3 +6,13 @@ A simple http server from scratch using `std::net::tcp`.
 This is for learning and playing purpose only.
 
 Should never be used in production for obvious reasons 💀
+
+## 🚀 Roadmap
+
+- [x] HTTP 1.0/1.1 support ✨
+- [x] HTTP 0.9 support 👴
+- [x] Routing 🚆
+- [x] Multi-threading 🤹
+- [x] Headers + cookies 🍪
+- [ ] HTTPS 🛡️
+- [ ] Improved routing 🚄
