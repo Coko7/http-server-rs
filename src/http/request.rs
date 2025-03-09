@@ -96,10 +96,7 @@ impl HttpRequest {
         let cookies = headers
             .iter()
             .filter(|header| header.name == "Cookie")
-            .map(|cookie| {
-                let (key, value) = cookie.value.split_once("=").unwrap();
-                HttpCookie::new(key, value)
-            })
+            .map(|cookie| HttpCookie::from_cookie_line(&cookie.value).unwrap())
             .collect();
 
         Ok(HttpRequest {

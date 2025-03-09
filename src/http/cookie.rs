@@ -1,6 +1,9 @@
-use std::hash::{Hash, Hasher};
+use std::{
+    hash::{Hash, Hasher},
+    str::FromStr,
+};
 
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -9,6 +12,19 @@ pub enum SameSitePolicy {
     Strict,
     Lax,
     None,
+}
+
+impl FromStr for SameSitePolicy {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        Ok(match s {
+            "Strict" => SameSitePolicy::Strict,
+            "Lax" => SameSitePolicy::Lax,
+            "None" => SameSitePolicy::None,
+            value => return Err(anyhow!("unknown SameSite policy: {}", value)),
+        })
+    }
 }
 
 impl ToString for SameSitePolicy {
@@ -61,6 +77,97 @@ impl HttpCookie {
             same_site: None,
             secure: false,
         }
+    }
+
+    fn get_attribute(attributes: &Vec<String>, attribute: &str) -> Option<String> {
+        attributes
+            .iter()
+            .find(|attr| attr.starts_with(attribute))
+            .map(|s| s.to_owned())
+    }
+
+    fn get_str_attribute(attributes: &Vec<String>, attribute: &str) -> Option<String> {
+        match Self::get_attribute(attributes, attribute) {
+            Some(attribute) => Some(attribute.split_once("=")?.1.to_string()),
+            None => None,
+        }
+    }
+
+    fn get_date_attribute(
+        attributes: &Vec<String>,
+        attribute: &str,
+    ) -> Result<Option<DateTime<Utc>>> {
+        match Self::get_str_attribute(attributes, attribute) {
+            Some(str_val) => match DateTime::parse_from_rfc2822(&str_val) {
+                Ok(date) => Ok(Some(date.with_timezone(&Utc))),
+                Err(error) => Err(anyhow!(
+                    "failed to parse string '{}' to DateTime<Utc>: {}",
+                    str_val,
+                    error
+                )),
+            },
+            None => Ok(None),
+        }
+    }
+
+    fn get_i32_attribute(attributes: &Vec<String>, attribute: &str) -> Result<Option<i32>> {
+        match Self::get_str_attribute(attributes, attribute) {
+            Some(str_val) => match str_val.parse::<i32>() {
+                Ok(num) => Ok(Some(num)),
+                Err(error) => Err(anyhow!(
+                    "failed to parse string '{}' to i32: {}",
+                    str_val,
+                    error
+                )),
+            },
+            None => Ok(None),
+        }
+    }
+
+    fn get_bool_attribute(attributes: &Vec<String>, attribute: &str) -> bool {
+        Self::get_attribute(attributes, attribute).is_some()
+    }
+
+    pub fn from_cookie_line(line: &str) -> Result<HttpCookie> {
+        let attributes: Vec<_> = line
+            .split(";")
+            .map(|attr| attr.trim())
+            .map(str::to_string)
+            .collect();
+
+        let (name, value) = attributes
+            .first()
+            .context("")?
+            .split_once("=")
+            .context("cookie must start with `name=value`")?;
+
+        let domain = Self::get_str_attribute(&attributes, "Domain");
+        let expires = Self::get_date_attribute(&attributes, "Expires")?;
+        let http_only = Self::get_bool_attribute(&attributes, "HttpOnly");
+        let max_age = Self::get_i32_attribute(&attributes, "Max-Age")?;
+        let partitioned = Self::get_bool_attribute(&attributes, "Partitioned");
+        let path = Self::get_str_attribute(&attributes, "Path");
+        let same_site = match Self::get_str_attribute(&attributes, "SameSite") {
+            Some(val) => match SameSitePolicy::from_str(&val) {
+                Ok(policy) => Ok(Some(policy)),
+                Err(error) => Err(error),
+            },
+            None => Ok(None),
+        }?;
+        let secure = Self::get_bool_attribute(&attributes, "Secure");
+
+        Ok(HttpCookie {
+            name: name.to_string(),
+            value: value.to_string(),
+            domain,
+            expires,
+            http_only,
+            max_age,
+            partitioned,
+            path,
+            same_site,
+            secure,
+        })
     }
 
     pub fn set_domain(mut self, domain: Option<String>) -> Self {
@@ -397,6 +504,62 @@ mod tests {
             .set_http_only(true)
             .to_str()
             .unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_cookie_from_line_missing_name_val_err() {
+        let cookie_line = "HttpOnly; Max-Age=3600";
+        assert!(HttpCookie::from_cookie_line(cookie_line).is_err());
+    }
+
+    #[test]
+    fn test_cookie_from_line_ok() {
+        let expires = DateTime::parse_from_rfc2822("Tue, 29 Oct 2024 16:56:32 +0000")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let expected = HttpCookie::new("foo", "bar")
+            .set_domain(Some("example.com".to_string()))
+            .set_expires(Some(expires))
+            .set_http_only(true)
+            .set_max_age(Some(3600))
+            .set_partitioned(true)
+            .set_path(Some("/some/path".to_string()))
+            .set_secure(true)
+            .set_same_site(Some(SameSitePolicy::Strict));
+
+        let cookie_line = "foo=bar; Domain=example.com; \
+            Expires=Tue, 29 Oct 2024 16:56:32 +0000; HttpOnly; Max-Age=3600; \
+            Partitioned; Path=/some/path; Secure; SameSite=Strict";
+        let actual = HttpCookie::from_cookie_line(cookie_line).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_cookie_from_line_unknown_attr_ok() {
+        let expires = DateTime::parse_from_rfc2822("Tue, 29 Oct 2024 16:56:32 +0000")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let expected = HttpCookie::new("foo", "bar")
+            .set_domain(Some("example.com".to_string()))
+            .set_expires(Some(expires))
+            .set_http_only(true)
+            .set_max_age(Some(3600))
+            .set_partitioned(true)
+            .set_path(Some("/some/path".to_string()))
+            .set_secure(true)
+            .set_same_site(Some(SameSitePolicy::Strict));
+
+        let cookie_line = "foo=bar; Domain=example.com; \
+            Expires=Tue, 29 Oct 2024 16:56:32 +0000; HttpOnly; Max-Age=3600; \
+            SomeUnknownAttribute=BAZ; \
+            Partitioned; Path=/some/path; Secure; SameSite=Strict";
+
+        let actual = HttpCookie::from_cookie_line(cookie_line).unwrap();
 
         assert_eq!(expected, actual);
     }
