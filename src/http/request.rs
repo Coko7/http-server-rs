@@ -1,25 +1,17 @@
-use anyhow::{Context, Result};
-use log::debug;
+use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
-    io::{BufRead, BufReader, Read},
     net::TcpStream,
     str::FromStr,
 };
 
-use super::{HttpCookie, HttpMethod, HttpVersion};
+use crate::http::request_raw::HttpRequestRaw;
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct HttpHeader {
-    pub name: String,
-    pub value: String,
-}
+use super::{HttpCookie, HttpHeader, HttpMethod, HttpVersion};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct HttpRequest {
-    pub request_line: String,
-
     pub method: HttpMethod,
     pub resource_path: String,
     pub version: HttpVersion,
@@ -27,23 +19,16 @@ pub struct HttpRequest {
     pub url: String,
     pub query: HashMap<String, String>,
 
-    pub headers: Vec<HttpHeader>,
+    pub headers: HashMap<String, HttpHeader>,
     pub cookies: HashSet<HttpCookie>,
     pub body: Option<String>,
 }
 
 impl HttpRequest {
     pub fn from_tcp(stream: &TcpStream) -> Result<HttpRequest> {
-        let mut buf_reader = BufReader::new(stream);
+        let raw_request = HttpRequestRaw::from_tcp(stream)?;
 
-        let mut start_line = String::new();
-        let mut headers = Vec::new();
-        let mut body = String::new();
-
-        buf_reader.read_line(&mut start_line)?;
-
-        debug!("start line: {}", start_line.trim());
-        let (verb, resource_path, version) = Self::parse_request_line(&start_line)?;
+        let (verb, resource_path, version) = Self::parse_request_line(&raw_request.request_line)?;
 
         let query_params = if resource_path.contains("?") {
             let (_, query_line) = resource_path
@@ -60,50 +45,25 @@ impl HttpRequest {
             .unwrap_or(&resource_path)
             .to_string();
 
-        if version != HttpVersion::HTTP0_9 {
-            let mut line = String::new();
-            while buf_reader.read_line(&mut line)? > 0 {
-                if line.trim().is_empty() {
-                    break;
-                }
-
-                if let Some((key, value)) = line.trim_end().split_once(':') {
-                    let header = HttpHeader {
-                        name: key.trim().to_string(),
-                        value: value.trim().to_string(),
-                    };
-                    headers.push(header);
-                }
-
-                line.clear();
-            }
-
-            if let Some(content_len) = headers
-                .iter()
-                .find(|header| header.name == "Content-Length")
-            {
-                let content_len: usize = content_len.value.parse()?;
-                if content_len > 0 {
-                    let mut buffer = vec![0; content_len];
-                    buf_reader.read_exact(&mut buffer)?;
-                    body = String::from_utf8(buffer)?;
-                }
-            }
-        }
-
-        let body = if body.len() > 0 { Some(body) } else { None };
-
-        let cookies = headers
+        let cookies = raw_request
+            .headers
             .iter()
             .filter(|header| header.name == "Cookie")
-            .map(|cookie| HttpCookie::from_cookie_line(&cookie.value).unwrap())
+            .map(|header| header.value.clone())
+            .map(|cookie_def| HttpCookie::from_cookie_line(&cookie_def).unwrap())
+            .collect();
+
+        let headers: HashMap<String, HttpHeader> = raw_request
+            .headers
+            .into_iter()
+            .filter(|header| header.name != "Cookie")
+            .map(|header| (header.name.clone(), header))
             .collect();
 
         Ok(HttpRequest {
-            request_line: start_line.trim().to_string(),
             headers,
             cookies,
-            body,
+            body: raw_request.body,
             version,
             method: verb,
             resource_path,
@@ -135,7 +95,9 @@ impl HttpRequest {
         let version = if let Some(version) = parts.next() {
             HttpVersion::from_str(version.trim())?
         } else {
-            HttpVersion::HTTP0_9
+            return Err(anyhow!(
+                "sorry... HTTP/0.9 is temporarily not supported for convenience"
+            ));
         };
 
         Ok((verb, resource_path, version))

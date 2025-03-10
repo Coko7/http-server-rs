@@ -40,18 +40,18 @@ impl ToString for SameSitePolicy {
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HttpCookie {
-    name: String,
-    value: String,
+    pub name: String,
+    pub value: String,
 
-    domain: Option<String>,
+    pub domain: Option<String>,
     #[serde(skip_serializing, skip_deserializing)]
-    expires: Option<DateTime<Utc>>,
-    http_only: bool,
-    max_age: Option<i32>,
-    partitioned: bool,
-    path: Option<String>,
-    same_site: Option<SameSitePolicy>,
-    secure: bool,
+    pub expires: Option<DateTime<Utc>>,
+    pub http_only: bool,
+    pub max_age: Option<i32>,
+    pub partitioned: bool,
+    pub path: Option<String>,
+    pub same_site: Option<SameSitePolicy>,
+    pub secure: bool,
 }
 
 impl Hash for HttpCookie {

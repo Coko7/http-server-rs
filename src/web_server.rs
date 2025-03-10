@@ -145,7 +145,7 @@ fn handle_connection(
 
     request_dbg.push_str(">>> HEADERS <<<\r\n");
 
-    for header in request.headers.iter() {
+    for header in request.headers.values() {
         request_dbg.push_str(format!("{}: {}\r\n", header.name, header.value).as_str());
     }
 
