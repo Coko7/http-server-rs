@@ -21,13 +21,13 @@ pub struct WebServer {
 }
 
 impl WebServer {
-    pub fn new(hostname: &str) -> Result<Self> {
+    pub fn new(hostname: &str, router: Router) -> Result<Self> {
         let listener = TcpListener::bind(hostname).unwrap();
         let pool = ThreadPool::new(4);
 
         Ok(WebServer {
             hostname: hostname.to_string(),
-            router: Arc::new(Mutex::new(Router::new())),
+            router: Arc::new(Mutex::new(router)),
             version: HttpVersion::HTTP1_1,
             listener,
             pool,

@@ -15,10 +15,11 @@ Should never be used in production for obvious reasons 💀
 - [x] Multi-threading 🤹
 - [x] Headers + cookies 🍪
 - [ ] HTTPS 🛡️
-- [ ] Improved routing 🚄
+- [ ] Improved routing 🚄 (W.I.P)
 
-## Usage
+## Usage (OUTDATED docs)
 
+⚠️ The following is outdated:
 ```rs
 use anyhow::Result;
 use http_server::http::{HttpRequest, HttpResponse, HttpResponseBuilder};
