@@ -25,9 +25,7 @@ pub struct HttpRequest {
 }
 
 impl HttpRequest {
-    pub fn from_tcp(stream: &TcpStream) -> Result<HttpRequest> {
-        let raw_request = HttpRequestRaw::from_tcp(stream)?;
-
+    pub fn from_raw_request(raw_request: HttpRequestRaw) -> Result<HttpRequest> {
         let (verb, resource_path, version) = Self::parse_request_line(&raw_request.request_line)?;
 
         let query_params = if resource_path.contains("?") {
@@ -70,6 +68,11 @@ impl HttpRequest {
             query: query_params,
             url,
         })
+    }
+
+    pub fn from_tcp(stream: &TcpStream) -> Result<HttpRequest> {
+        let raw_request = HttpRequestRaw::from_tcp(stream)?;
+        Self::from_raw_request(raw_request)
     }
 
     pub fn method(&self) -> &HttpMethod {

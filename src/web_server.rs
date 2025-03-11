@@ -1,43 +1,20 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::Result;
 use log::{debug, error, info};
 use std::{
-    collections::HashMap,
     io::Write,
     net::{TcpListener, TcpStream},
-    str::FromStr,
+    sync::{Arc, Mutex},
 };
 
 use crate::{
-    http::{HttpMethod, HttpRequest, HttpResponse, HttpVersion},
+    http::{HttpRequest, HttpVersion},
+    router::Router,
     thread_pool::ThreadPool,
 };
 
-#[derive(Debug, Hash, Eq, PartialEq, Clone)]
-pub struct Route {
-    pub verb: HttpMethod,
-    pub path: String,
-}
-
-impl FromStr for Route {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let (verb, path) = s.split_once(" ").context("route should have: VERB PATH")?;
-        let verb = HttpMethod::from_str(verb)?;
-
-        let path = if path.ends_with('/') {
-            path.to_string()
-        } else {
-            format!("{}/", path)
-        };
-
-        Ok(Route { verb, path })
-    }
-}
-
 pub struct WebServer {
     pub hostname: String,
-    pub routes: HashMap<Route, fn(&HttpRequest) -> Result<HttpResponse>>,
+    pub router: Arc<Mutex<Router>>,
     version: HttpVersion,
     listener: TcpListener,
     pool: ThreadPool,
@@ -50,7 +27,7 @@ impl WebServer {
 
         Ok(WebServer {
             hostname: hostname.to_string(),
-            routes: HashMap::new(),
+            router: Arc::new(Mutex::new(Router::new())),
             version: HttpVersion::HTTP1_1,
             listener,
             pool,
@@ -65,10 +42,9 @@ impl WebServer {
             debug!("{}", "new connection!");
             let stream = stream?;
 
-            let routes = self.routes.clone();
-
+            let router_clone = Arc::clone(&self.router);
             self.pool.execute(move || {
-                let result = handle_connection(stream, &routes);
+                let result = handle_connection(router_clone, stream);
                 if let Err(result) = result {
                     let error = format!("error: {}", result);
                     error!("{}", error);
@@ -83,52 +59,9 @@ impl WebServer {
         self.version = version;
         self
     }
-
-    pub fn route(
-        mut self,
-        route_def: &str,
-        callback: fn(&HttpRequest) -> Result<HttpResponse>,
-    ) -> Result<Self> {
-        let route = Route::from_str(route_def)?;
-
-        if self.routes.contains_key(&route) {
-            return Err(anyhow!(
-                "cannot register route {:?} because a similar route already exists",
-                route
-            ));
-        }
-
-        self.routes.insert(route, callback);
-        Ok(self)
-    }
 }
 
-fn handle_request(
-    request: &HttpRequest,
-    routes: &HashMap<Route, fn(&HttpRequest) -> Result<HttpResponse>>,
-) -> Result<HttpResponse> {
-    let route_def = format!("{} {}", request.method.to_string(), request.url);
-    let route = Route::from_str(&route_def)?;
-    debug!("route: {route_def}");
-
-    let response = if let Some(route_callback) = routes.get(&route) {
-        route_callback(request)
-    } else {
-        let catch_all_route = Route::from_str("GET /*")?;
-        if let Some(catch_all_callback) = routes.get(&catch_all_route) {
-            return catch_all_callback(request);
-        }
-
-        Err(anyhow!("unsupported route: {route_def}"))
-    };
-
-    response
-}
-
-fn handle_connection(
-    mut stream: TcpStream,
-    routes: &HashMap<Route, fn(&HttpRequest) -> Result<HttpResponse>>,
-) -> Result<()> {
+fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Result<()> {
     let request = HttpRequest::from_tcp(&stream)?;
 
     let mut request_dbg = String::new();
@@ -157,7 +90,11 @@ fn handle_connection(
     request_dbg.push_str(">>> Request END <<<\r\n");
     debug!("{}", request_dbg);
 
-    let response = handle_request(&request, &routes)?.to_string()?;
+    let response = router
+        .lock()
+        .unwrap()
+        .handle_request(&request)?
+        .to_string()?;
 
     stream.write_all(response.as_bytes())?;
     Ok(())
