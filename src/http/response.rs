@@ -1,7 +1,7 @@
 use std::collections::BTreeMap;
 
 use anyhow::{anyhow, Result};
-use log::debug;
+use log::trace;
 
 use super::{HttpCookie, HttpHeader, HttpVersion};
 
@@ -34,7 +34,7 @@ impl HttpResponse {
             return Err(anyhow!("status must be set on response"));
         }
         let mut response = format!("{}\r\n", self.start_line());
-        debug!("{:?}", response);
+        trace!("{:?}", response);
 
         for (_, header) in self.headers.iter() {
             let header = format!("{}: {}\r\n", header.name, header.value);

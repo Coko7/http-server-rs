@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::debug;
+use log::trace;
 use std::{
     sync::{mpsc, Arc, Mutex},
     thread,
@@ -65,7 +65,7 @@ impl Worker {
                 .recv()
                 .unwrap();
 
-            debug!("worker {id} got a job; executing.");
+            trace!("worker {id} got a job; executing.");
             job();
         })?;
 

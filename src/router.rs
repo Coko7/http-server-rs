@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use log::debug;
+use log::trace;
 use std::{collections::HashMap, str::FromStr};
 
 use crate::http::{HttpMethod, HttpRequest, HttpResponse};
@@ -21,7 +21,7 @@ impl Router {
     pub fn handle_request(&self, request: &HttpRequest) -> Result<HttpResponse> {
         let route_def = format!("{} {}", request.method.to_string(), request.url);
         let route = Route::from_str(&route_def)?;
-        debug!("route: {route_def}");
+        trace!("trying to match route: {route_def}");
 
         let response = if let Some(route_callback) = self.routes.get(&route) {
             route_callback(request)
@@ -31,7 +31,7 @@ impl Router {
                 return catch_all_callback(request);
             }
 
-            Err(anyhow!("unsupported route: {route_def}"))
+            Err(anyhow!("failed to match route: {route_def}"))
         };
 
         response

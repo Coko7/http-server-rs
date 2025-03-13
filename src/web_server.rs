@@ -1,5 +1,5 @@
 use anyhow::Result;
-use log::{debug, error, info};
+use log::{error, info, trace};
 use std::{
     io::Write,
     net::{TcpListener, TcpStream},
@@ -39,7 +39,7 @@ impl WebServer {
         info!("awaiting connections...");
 
         for stream in self.listener.incoming() {
-            debug!("{}", "new connection!");
+            trace!("{}", "got new tcp connection!");
             let stream = stream?;
 
             let router_clone = Arc::clone(&self.router);
@@ -65,7 +65,7 @@ fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Resul
     let request = HttpRequest::from_tcp(&stream)?;
 
     let mut request_dbg = String::new();
-    request_dbg.push_str(">>> Request START <<<\r\n");
+    request_dbg.push_str("\r\n>>> Request START <<<\r\n");
     request_dbg.push_str(
         format!(
             "{} {} {}\r\n",
@@ -88,7 +88,7 @@ fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Resul
     }
 
     request_dbg.push_str(">>> Request END <<<\r\n");
-    debug!("{}", request_dbg);
+    trace!("{}", request_dbg);
 
     let response = router
         .lock()

@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
-use log::debug;
+use log::trace;
 use serde::Serialize;
 
 use super::{HttpCookie, HttpHeader, HttpResponse, HttpVersion};
@@ -22,10 +22,11 @@ impl HttpResponseBuilder {
     }
 
     pub fn build(self) -> Result<HttpResponse> {
-        debug!("{:#?}", self.response);
         if self.response.status.is_empty() {
             return Err(anyhow!("status must be set on response"));
         }
+
+        trace!("{:#?}", self.response);
         Ok(self.response)
     }
 
