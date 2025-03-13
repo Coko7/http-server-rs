@@ -136,29 +136,21 @@ impl FromStr for Route {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use crate::http::{HttpRequestRaw, HttpResponseBuilder};
 
     use super::*;
 
-    fn hello_callback(request: &HttpRequest) -> Result<HttpResponse> {
+    fn get_hello_callback(_request: &HttpRequest) -> Result<HttpResponse> {
         HttpResponseBuilder::new()
             .set_html_body("Hello World!")
             .build()
     }
 
-    #[test]
-    fn test_get_hello() {
-        let router = Router::new().get("/hello", hello_callback).unwrap();
-
-        let request = HttpRequest::from_raw_request(HttpRequestRaw {
-            request_line: "GET /hello HTTP/1.1".to_string(),
-            headers: Vec::new(),
-            body: None,
-        })
-        .unwrap();
-
-        let response = router.handle_request(&request).unwrap();
-        assert_eq!("Hello World!\r\n", response.body);
+    fn post_user_callback(_request: &HttpRequest) -> Result<HttpResponse> {
+        let json = json!({ "created": true });
+        HttpResponseBuilder::new().set_json_body(&json)?.build()
     }
 
     #[test]
@@ -178,7 +170,7 @@ mod tests {
 
     #[test]
     fn test_unknown_has_fallback() {
-        let router = Router::new().get("/*", hello_callback).unwrap();
+        let router = Router::new().get("/*", get_hello_callback).unwrap();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
             request_line: "GET /not-a-real-page HTTP/1.1".to_string(),
@@ -189,5 +181,35 @@ mod tests {
 
         let response = router.handle_request(&request).unwrap();
         assert_eq!("Hello World!\r\n", response.body);
+    }
+
+    #[test]
+    fn test_get_hello_html() {
+        let router = Router::new().get("/hello", get_hello_callback).unwrap();
+
+        let request = HttpRequest::from_raw_request(HttpRequestRaw {
+            request_line: "GET /hello HTTP/1.1".to_string(),
+            headers: Vec::new(),
+            body: None,
+        })
+        .unwrap();
+
+        let response = router.handle_request(&request).unwrap();
+        assert_eq!("Hello World!\r\n", response.body);
+    }
+
+    #[test]
+    fn test_post_user_json() {
+        let router = Router::new().post("/user", post_user_callback).unwrap();
+
+        let request = HttpRequest::from_raw_request(HttpRequestRaw {
+            request_line: "POST /user HTTP/1.1".to_string(),
+            headers: Vec::new(),
+            body: None,
+        })
+        .unwrap();
+
+        let response = router.handle_request(&request).unwrap();
+        assert_eq!("{\"created\":true}\r\n", response.body);
     }
 }

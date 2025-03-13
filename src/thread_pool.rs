@@ -6,7 +6,7 @@ use std::{
 };
 
 pub struct ThreadPool {
-    workers: Vec<Worker>,
+    _workers: Vec<Worker>,
     sender: mpsc::Sender<Job>,
 }
 
@@ -34,7 +34,10 @@ impl ThreadPool {
             workers.push(worker);
         }
 
-        ThreadPool { workers, sender }
+        ThreadPool {
+            _workers: workers,
+            sender,
+        }
     }
 
     pub fn execute<F>(&self, f: F)
@@ -48,8 +51,8 @@ impl ThreadPool {
 }
 
 struct Worker {
-    id: usize,
-    thread: thread::JoinHandle<()>,
+    _id: usize,
+    _thread: thread::JoinHandle<()>,
 }
 
 impl Worker {
@@ -66,6 +69,9 @@ impl Worker {
             job();
         })?;
 
-        Ok(Worker { id, thread })
+        Ok(Worker {
+            _id: id,
+            _thread: thread,
+        })
     }
 }
