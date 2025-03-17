@@ -9,8 +9,8 @@ pub struct HttpHeader {
 impl HttpHeader {
     pub fn new(name: &str, value: &str) -> Self {
         HttpHeader {
-            name: name.to_string(),
-            value: value.to_string(),
+            name: name.to_owned(),
+            value: value.to_owned(),
         }
     }
 }

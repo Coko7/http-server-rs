@@ -3,10 +3,18 @@ use chrono::{DateTime, Utc};
 use log::trace;
 use serde::Serialize;
 
-use super::{HttpCookie, HttpHeader, HttpResponse, HttpVersion};
+use super::{
+    response_status_codes::HttpStatusCode, HttpCookie, HttpHeader, HttpResponse, HttpVersion,
+};
 
 pub struct HttpResponseBuilder {
     response: HttpResponse,
+}
+
+impl Default for HttpResponseBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl HttpResponseBuilder {
@@ -35,22 +43,24 @@ impl HttpResponseBuilder {
         self
     }
 
-    pub fn set_status(mut self, status: &str) -> Self {
-        self.response.status = status.to_string();
+    pub fn set_status(self, status: HttpStatusCode) -> Self {
+        self.set_raw_status(&status.to_string())
+    }
+
+    pub fn set_raw_status(mut self, status: &str) -> Self {
+        self.response.status = status.to_owned();
         self
     }
 
     pub fn set_header(mut self, key: &str, value: &str) -> Self {
         self.response
             .headers
-            .insert(key.to_string(), HttpHeader::new(key, value));
+            .insert(key.to_owned(), HttpHeader::new(key, value));
         self
     }
 
     pub fn set_cookie(mut self, cookie: HttpCookie) -> Self {
-        self.response
-            .cookies
-            .insert(cookie.name.to_string(), cookie);
+        self.response.cookies.insert(cookie.name.to_owned(), cookie);
         self
     }
 
@@ -61,7 +71,7 @@ impl HttpResponseBuilder {
     }
 
     pub fn set_html_body(mut self, body: &str) -> Self {
-        let body = format!("{}\r\n", body.to_string());
+        let body = format!("{}\r\n", body);
         let length = body.len().to_string();
 
         self.response.body = body;
@@ -73,7 +83,7 @@ impl HttpResponseBuilder {
 
     pub fn set_json_body<T: Serialize>(mut self, body: &T) -> Result<Self> {
         let body = serde_json::to_string(&body)?.to_string();
-        let body = format!("{}\r\n", body.to_string());
+        let body = format!("{}\r\n", body);
         let length = body.len().to_string();
 
         self.response.body = body;
@@ -103,12 +113,13 @@ Set-Cookie: foo=bar; HttpOnly; Path=/some/path\r\n\r\n<p>Hello World</p>\r\n";
             .with_timezone(&Utc);
 
         let actual = HttpResponseBuilder::new()
+            .set_status(HttpStatusCode::OK)
             .set_date(expires)
             .set_html_body("<p>Hello World</p>")
             .set_cookie(
                 HttpCookie::new("foo", "bar")
                     .set_http_only(true)
-                    .set_path(Some("/some/path".to_string())),
+                    .set_path(Some("/some/path")),
             )
             .set_cookie(
                 HttpCookie::new("User", "jhondoe")

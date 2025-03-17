@@ -14,11 +14,17 @@ pub struct HttpResponse {
     pub body: String,
 }
 
+impl Default for HttpResponse {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HttpResponse {
     pub fn new() -> Self {
         HttpResponse {
             version: HttpVersion::HTTP1_1,
-            status: "200 OK".to_string(),
+            status: "200 OK".to_owned(),
             headers: BTreeMap::new(),
             cookies: BTreeMap::new(),
             body: String::new(),
@@ -26,7 +32,7 @@ impl HttpResponse {
     }
 
     pub fn start_line(&self) -> String {
-        format!("{} {}", self.version.to_string(), self.status)
+        format!("{} {}", self.version, self.status)
     }
 
     pub fn to_string(&self) -> Result<String> {

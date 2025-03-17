@@ -30,8 +30,8 @@ impl HttpRequestRaw {
 
             if let Some((key, value)) = line.trim_end().split_once(':') {
                 let header = HttpHeader {
-                    name: key.trim().to_string(),
-                    value: value.trim().to_string(),
+                    name: key.trim().to_owned(),
+                    value: value.trim().to_owned(),
                 };
                 headers.push(header);
             }
@@ -51,7 +51,7 @@ impl HttpRequestRaw {
             }
         }
 
-        let body = if body.len() > 0 { Some(body) } else { None };
+        let body = if !body.is_empty() { Some(body) } else { None };
 
         Ok(HttpRequestRaw {
             request_line,

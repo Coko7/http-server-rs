@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 #[derive(Hash, PartialEq, Eq, Debug, Serialize, Deserialize, Clone)]
 pub enum HttpMethod {
@@ -34,19 +34,18 @@ impl FromStr for HttpMethod {
     }
 }
 
-impl ToString for HttpMethod {
-    fn to_string(&self) -> String {
+impl Display for HttpMethod {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HttpMethod::GET => "GET",
-            HttpMethod::HEAD => "HEAD",
-            HttpMethod::POST => "POST",
-            HttpMethod::PUT => "PUT",
-            HttpMethod::DELETE => "DELETE",
-            HttpMethod::CONNECT => "CONNECT",
-            HttpMethod::OPTIONS => "OPTIONS",
-            HttpMethod::TRACE => "TRACE",
-            HttpMethod::PATCH => "PATCH",
+            HttpMethod::GET => write!(f, "GET"),
+            HttpMethod::HEAD => write!(f, "HEAD"),
+            HttpMethod::POST => write!(f, "POST"),
+            HttpMethod::PUT => write!(f, "PUT"),
+            HttpMethod::DELETE => write!(f, "DELETE"),
+            HttpMethod::CONNECT => write!(f, "CONNECT"),
+            HttpMethod::OPTIONS => write!(f, "OPTIONS"),
+            HttpMethod::TRACE => write!(f, "TRACE"),
+            HttpMethod::PATCH => write!(f, "PATCH"),
         }
-        .to_string()
     }
 }

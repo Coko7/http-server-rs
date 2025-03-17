@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use std::str::FromStr;
+use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
 
@@ -26,14 +26,13 @@ impl FromStr for HttpVersion {
     }
 }
 
-impl ToString for HttpVersion {
-    fn to_string(&self) -> String {
+impl Display for HttpVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            HttpVersion::HTTP0_9 => "",
-            HttpVersion::HTTP1_0 => "HTTP/1.0",
-            HttpVersion::HTTP1_1 => "HTTP/1.1",
+            HttpVersion::HTTP0_9 => write!(f, ""),
+            HttpVersion::HTTP1_0 => write!(f, "HTTP/1.0"),
+            HttpVersion::HTTP1_1 => write!(f, "HTTP/1.1"),
         }
-        .to_string()
     }
 }
 

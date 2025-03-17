@@ -1,4 +1,5 @@
 use std::{
+    fmt::Display,
     hash::{Hash, Hasher},
     str::FromStr,
 };
@@ -27,14 +28,13 @@ impl FromStr for SameSitePolicy {
     }
 }
 
-impl ToString for SameSitePolicy {
-    fn to_string(&self) -> String {
+impl Display for SameSitePolicy {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SameSitePolicy::Strict => "Strict",
-            SameSitePolicy::Lax => "Lax",
-            SameSitePolicy::None => "None",
+            SameSitePolicy::Strict => write!(f, "Strict"),
+            SameSitePolicy::Lax => write!(f, "Lax"),
+            SameSitePolicy::None => write!(f, "None"),
         }
-        .to_string()
     }
 }
 
@@ -79,24 +79,21 @@ impl HttpCookie {
         }
     }
 
-    fn get_attribute(attributes: &Vec<String>, attribute: &str) -> Option<String> {
+    fn get_attribute(attributes: &[String], attribute: &str) -> Option<String> {
         attributes
             .iter()
             .find(|attr| attr.starts_with(attribute))
             .map(|s| s.to_owned())
     }
 
-    fn get_str_attribute(attributes: &Vec<String>, attribute: &str) -> Option<String> {
+    fn get_str_attribute(attributes: &[String], attribute: &str) -> Option<String> {
         match Self::get_attribute(attributes, attribute) {
             Some(attribute) => Some(attribute.split_once("=")?.1.to_string()),
             None => None,
         }
     }
 
-    fn get_date_attribute(
-        attributes: &Vec<String>,
-        attribute: &str,
-    ) -> Result<Option<DateTime<Utc>>> {
+    fn get_date_attribute(attributes: &[String], attribute: &str) -> Result<Option<DateTime<Utc>>> {
         match Self::get_str_attribute(attributes, attribute) {
             Some(str_val) => match DateTime::parse_from_rfc2822(&str_val) {
                 Ok(date) => Ok(Some(date.with_timezone(&Utc))),
@@ -110,7 +107,7 @@ impl HttpCookie {
         }
     }
 
-    fn get_i32_attribute(attributes: &Vec<String>, attribute: &str) -> Result<Option<i32>> {
+    fn get_i32_attribute(attributes: &[String], attribute: &str) -> Result<Option<i32>> {
         match Self::get_str_attribute(attributes, attribute) {
             Some(str_val) => match str_val.parse::<i32>() {
                 Ok(num) => Ok(Some(num)),
@@ -124,7 +121,7 @@ impl HttpCookie {
         }
     }
 
-    fn get_bool_attribute(attributes: &Vec<String>, attribute: &str) -> bool {
+    fn get_bool_attribute(attributes: &[String], attribute: &str) -> bool {
         Self::get_attribute(attributes, attribute).is_some()
     }
 
@@ -157,8 +154,8 @@ impl HttpCookie {
         let secure = Self::get_bool_attribute(&attributes, "Secure");
 
         Ok(HttpCookie {
-            name: name.to_string(),
-            value: value.to_string(),
+            name: name.to_owned(),
+            value: value.to_owned(),
             domain,
             expires,
             http_only,
@@ -170,8 +167,8 @@ impl HttpCookie {
         })
     }
 
-    pub fn set_domain(mut self, domain: Option<String>) -> Self {
-        self.domain = domain;
+    pub fn set_domain(mut self, domain: Option<&str>) -> Self {
+        self.domain = domain.map(String::from);
         self
     }
 
@@ -195,8 +192,8 @@ impl HttpCookie {
         self
     }
 
-    pub fn set_path(mut self, path: Option<String>) -> Self {
-        self.path = path;
+    pub fn set_path(mut self, path: Option<&str>) -> Self {
+        self.path = path.map(String::from);
         self
     }
 
@@ -244,7 +241,7 @@ impl HttpCookie {
         }
 
         if self.http_only {
-            attributes.push("HttpOnly".to_string());
+            attributes.push("HttpOnly".to_owned());
         }
 
         if let Some(max_age) = &self.max_age {
@@ -252,7 +249,7 @@ impl HttpCookie {
         }
 
         if self.partitioned {
-            attributes.push("Partitioned".to_string());
+            attributes.push("Partitioned".to_owned());
         }
 
         if let Some(path) = &self.path {
@@ -260,11 +257,11 @@ impl HttpCookie {
         }
 
         if let Some(same_site) = &self.same_site {
-            attributes.push(format!("SameSite={}", same_site.to_string()));
+            attributes.push(format!("SameSite={}", same_site));
         }
 
         if self.secure {
-            attributes.push("Secure".to_string());
+            attributes.push("Secure".to_owned());
         }
 
         Ok(attributes.join("; "))
@@ -319,7 +316,7 @@ mod tests {
     fn test_cookie_attr_domain() {
         let expected = "foo=bar; Domain=example.com";
         let actual = HttpCookie::new("foo", "bar")
-            .set_domain(Some("example.com".to_string()))
+            .set_domain(Some("example.com"))
             .to_str()
             .unwrap();
 
@@ -423,7 +420,7 @@ mod tests {
     fn test_cookie_attr_path() {
         let expected = "foo=bar; Path=/foo/bar/baz";
         let actual = HttpCookie::new("foo", "bar")
-            .set_path(Some("/foo/bar/baz".to_string()))
+            .set_path(Some("/foo/bar/baz"))
             .to_str()
             .unwrap();
 
@@ -499,7 +496,7 @@ mod tests {
     fn test_cookie_attr_multiple() {
         let expected = "foo=bar; Domain=example.com; HttpOnly; Secure";
         let actual = HttpCookie::new("foo", "bar")
-            .set_domain(Some("example.com".to_string()))
+            .set_domain(Some("example.com"))
             .set_secure(true)
             .set_http_only(true)
             .to_str()
@@ -521,12 +518,12 @@ mod tests {
             .with_timezone(&Utc);
 
         let expected = HttpCookie::new("foo", "bar")
-            .set_domain(Some("example.com".to_string()))
+            .set_domain(Some("example.com"))
             .set_expires(Some(expires))
             .set_http_only(true)
             .set_max_age(Some(3600))
             .set_partitioned(true)
-            .set_path(Some("/some/path".to_string()))
+            .set_path(Some("/some/path"))
             .set_secure(true)
             .set_same_site(Some(SameSitePolicy::Strict));
 
@@ -545,12 +542,12 @@ mod tests {
             .with_timezone(&Utc);
 
         let expected = HttpCookie::new("foo", "bar")
-            .set_domain(Some("example.com".to_string()))
+            .set_domain(Some("example.com"))
             .set_expires(Some(expires))
             .set_http_only(true)
             .set_max_age(Some(3600))
             .set_partitioned(true)
-            .set_path(Some("/some/path".to_string()))
+            .set_path(Some("/some/path"))
             .set_secure(true)
             .set_same_site(Some(SameSitePolicy::Strict));
 

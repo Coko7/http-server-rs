@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 pub enum HttpStatusCode {
     // 1XX
     Continue = 100,
@@ -67,4 +69,81 @@ pub enum HttpStatusCode {
     LoopDetected = 508,
     NotExtended = 510,
     NetworkAuthenticationRequired = 511,
+}
+
+impl Display for HttpStatusCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let value = match self {
+            // 1XX
+            HttpStatusCode::Continue => "100 Continue",
+            HttpStatusCode::SwitchingProtocols => "101 Switching Protocols",
+            HttpStatusCode::ProcessingDeprecated => "102 Processing Deprecated",
+            HttpStatusCode::EarlyHints => "103 EarlyHints",
+            // 2XX
+            HttpStatusCode::OK => "200 OK",
+            HttpStatusCode::Created => "201 Created",
+            HttpStatusCode::Accepted => "202 Accepted",
+            HttpStatusCode::NonAuthoritativeInformation => "203 Non Authoritative Information",
+            HttpStatusCode::NoContent => "204 No Content",
+            HttpStatusCode::ResetContent => "205 Reset Content",
+            HttpStatusCode::PartialContent => "206 Partial Content",
+            HttpStatusCode::MultiStatus => "207 Multi Status",
+            HttpStatusCode::AlreadyReported => "208 Already Reported",
+            HttpStatusCode::IMUsed => "226 IM Used",
+            // 3XX
+            HttpStatusCode::MultipleChoices => "300 Multiple Choices",
+            HttpStatusCode::MovedPermanently => "301 Moved Permanently",
+            HttpStatusCode::Found => "302 Found",
+            HttpStatusCode::SeeOther => "303 See Other",
+            HttpStatusCode::NotModified => "304 Not Modified",
+            HttpStatusCode::UseProxyDeprecated => "305 Use Proxy Deprecated",
+            HttpStatusCode::Unused => "306 Unused",
+            HttpStatusCode::TemporaryRedirect => "307 Temporary Redirect",
+            HttpStatusCode::PermanentRedirect => "308 Permanent Redirect",
+            // 4XX
+            HttpStatusCode::BadRequest => "400 Bad Request",
+            HttpStatusCode::Unauthorized => "401 Unauthorized",
+            HttpStatusCode::PaymentRequired => "402 Payment Required",
+            HttpStatusCode::Forbidden => "403 Forbidden",
+            HttpStatusCode::NotFound => "404 Not Found",
+            HttpStatusCode::MethodNotAllowed => "405 Method Not Allowed",
+            HttpStatusCode::NotAcceptable => "406 Not Acceptable",
+            HttpStatusCode::ProxyAuthenticationRequired => "407 Proxy Authentication Required",
+            HttpStatusCode::RequestTimeout => "408 Request Timeout",
+            HttpStatusCode::Conflict => "409 Conflict",
+            HttpStatusCode::Gone => "410 Gone",
+            HttpStatusCode::LengthRequired => "411 Length Required",
+            HttpStatusCode::PreconditionFailed => "412 Precondition Failed",
+            HttpStatusCode::ContentTooLarge => "413 Content Too Large",
+            HttpStatusCode::URITooLong => "414 URI Too Long",
+            HttpStatusCode::UnsupportedMediaType => "415 Unsupported Media Type",
+            HttpStatusCode::RangeNotSatisfiable => "416 Range Not Satisfiable",
+            HttpStatusCode::ExpectationFailed => "417 Expectation Failed",
+            HttpStatusCode::ImATeapot => "418 I'm a Teapot",
+            HttpStatusCode::MisdirectedRequest => "421 Misdirected Request",
+            HttpStatusCode::UnprocessableContent => "422 Unprocessable Content",
+            HttpStatusCode::Locked => "423 Locked",
+            HttpStatusCode::FailedDependency => "424 Failed Dependency",
+            HttpStatusCode::TooEarlyExperimental => "425 Too Early Experimental",
+            HttpStatusCode::UpgradeRequired => "426 Upgrade Required",
+            HttpStatusCode::PreconditionRequired => "428 Precondition Required",
+            HttpStatusCode::TooManyRequests => "429 Too Many Requests",
+            HttpStatusCode::RequestHeaderFieldsTooLarge => "431 Request Header Fields Too Large",
+            HttpStatusCode::UnavailableForLegalReasons => "451 Unavailable For Legal Reasons",
+            // 5XX
+            HttpStatusCode::InternalServerError => "500 Internal Server Error",
+            HttpStatusCode::NotImplemented => "501 Not Implemented",
+            HttpStatusCode::BadGateway => "502 Bad Gateway",
+            HttpStatusCode::ServiceUnavailable => "503 Service Unavailable",
+            HttpStatusCode::GatewayTimeout => "504 Gateway Timeout",
+            HttpStatusCode::HTTPVersionNotSupported => "505 HTTP Version Not Supported",
+            HttpStatusCode::VariantAlsoNegotiates => "506 Variant Also Negotiates",
+            HttpStatusCode::InsufficientStorage => "507 Insufficient Storage",
+            HttpStatusCode::LoopDetected => "508 Loop Detected",
+            HttpStatusCode::NotExtended => "510 Not Extended",
+            HttpStatusCode::NetworkAuthenticationRequired => "511 Network Authentication Required",
+        };
+
+        write!(f, "{}", value)
+    }
 }

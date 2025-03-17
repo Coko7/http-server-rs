@@ -1,10 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{HashMap, HashSet},
-    net::TcpStream,
-    str::FromStr,
-};
+use std::{collections::HashMap, net::TcpStream, str::FromStr};
 
 use crate::http::request_raw::HttpRequestRaw;
 
@@ -20,7 +16,7 @@ pub struct HttpRequest {
     pub query: HashMap<String, String>,
 
     pub headers: HashMap<String, HttpHeader>,
-    pub cookies: HashSet<HttpCookie>,
+    pub cookies: HashMap<String, HttpCookie>,
     pub body: Option<String>,
 }
 
@@ -32,7 +28,7 @@ impl HttpRequest {
             let (_, query_line) = resource_path
                 .split_once('?')
                 .context("resource path should contain query sep `?`")?;
-            Self::parse_query_line(&query_line)?
+            Self::parse_query_line(query_line)?
         } else {
             HashMap::new()
         };
@@ -41,21 +37,22 @@ impl HttpRequest {
             .split('?')
             .next()
             .unwrap_or(&resource_path)
-            .to_string();
+            .to_owned();
 
-        let cookies = raw_request
+        let cookies: HashMap<String, HttpCookie> = raw_request
             .headers
             .iter()
             .filter(|header| header.name == "Cookie")
-            .map(|header| header.value.clone())
+            .map(|header| header.value.to_owned())
             .map(|cookie_def| HttpCookie::from_cookie_line(&cookie_def).unwrap())
+            .map(|cookie| (cookie.name.to_owned(), cookie))
             .collect();
 
         let headers: HashMap<String, HttpHeader> = raw_request
             .headers
             .into_iter()
             .filter(|header| header.name != "Cookie")
-            .map(|header| (header.name.clone(), header))
+            .map(|header| (header.name.to_owned(), header))
             .collect();
 
         Ok(HttpRequest {
@@ -80,7 +77,7 @@ impl HttpRequest {
     }
 
     pub fn parse_request_line(start_line: &str) -> Result<(HttpMethod, String, HttpVersion)> {
-        let mut parts = start_line.split(" ").into_iter();
+        let mut parts = start_line.split(" ");
 
         let verb = parts
             .next()
@@ -93,7 +90,7 @@ impl HttpRequest {
             .next()
             .context("start line should have resource path")?
             .trim()
-            .to_string();
+            .to_owned();
 
         let version = if let Some(version) = parts.next() {
             HttpVersion::from_str(version.trim())?
@@ -112,7 +109,7 @@ impl HttpRequest {
 
         for param in query_params {
             let (key, value) = param.split_once('=').context("= should be in query")?;
-            result.insert(key.to_string(), value.to_string());
+            result.insert(key.to_owned(), value.to_owned());
         }
 
         Ok(result)

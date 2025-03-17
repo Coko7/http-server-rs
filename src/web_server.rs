@@ -26,7 +26,7 @@ impl WebServer {
         let pool = ThreadPool::new(4);
 
         Ok(WebServer {
-            hostname: hostname.to_string(),
+            hostname: hostname.to_owned(),
             router: Arc::new(Mutex::new(router)),
             version: HttpVersion::HTTP1_1,
             listener,
@@ -69,9 +69,7 @@ fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Resul
     request_dbg.push_str(
         format!(
             "{} {} {}\r\n",
-            request.method.to_string(),
-            request.resource_path,
-            request.version.to_string(),
+            request.method, request.resource_path, request.version,
         )
         .as_str(),
     );

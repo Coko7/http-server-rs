@@ -11,6 +11,12 @@ pub struct Router {
     pub routes: HashMap<Route, RoutingCallback>,
 }
 
+impl Default for Router {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Router {
     pub fn new() -> Self {
         Router {
@@ -19,7 +25,7 @@ impl Router {
     }
 
     pub fn handle_request(&self, request: &HttpRequest) -> Result<HttpResponse> {
-        let route_def = format!("{} {}", request.method.to_string(), request.url);
+        let route_def = format!("{} {}", request.method, request.url);
         let route = Route::from_str(&route_def)?;
         trace!("trying to match route: {route_def}");
 
@@ -44,14 +50,14 @@ impl Router {
         callback: RoutingCallback,
     ) -> Result<()> {
         let path = if path.ends_with('/') {
-            path.to_string()
+            path.to_owned()
         } else {
             format!("{}/", path)
         };
 
         let route = Route {
             method,
-            path: path.to_string(),
+            path: path.to_owned(),
         };
 
         if self.routes.contains_key(&route) {
@@ -125,7 +131,7 @@ impl FromStr for Route {
         let verb = HttpMethod::from_str(verb)?;
 
         let path = if path.ends_with('/') {
-            path.to_string()
+            path.to_owned()
         } else {
             format!("{}/", path)
         };
@@ -158,7 +164,7 @@ mod tests {
         let router = Router::new();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
-            request_line: "GET /hello HTTP/1.1".to_string(),
+            request_line: "GET /hello HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: None,
         })
@@ -173,7 +179,7 @@ mod tests {
         let router = Router::new().get("/*", get_hello_callback).unwrap();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
-            request_line: "GET /not-a-real-page HTTP/1.1".to_string(),
+            request_line: "GET /not-a-real-page HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: None,
         })
@@ -188,7 +194,7 @@ mod tests {
         let router = Router::new().get("/hello", get_hello_callback).unwrap();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
-            request_line: "GET /hello HTTP/1.1".to_string(),
+            request_line: "GET /hello HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: None,
         })
@@ -203,7 +209,7 @@ mod tests {
         let router = Router::new().post("/user", post_user_callback).unwrap();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
-            request_line: "POST /user HTTP/1.1".to_string(),
+            request_line: "POST /user HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: None,
         })
