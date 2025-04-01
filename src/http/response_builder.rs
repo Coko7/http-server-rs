@@ -64,21 +64,22 @@ impl HttpResponseBuilder {
         self
     }
 
-    pub fn set_date(mut self, date: DateTime<Utc>) -> Self {
+    pub fn set_date(self, date: DateTime<Utc>) -> Self {
         let date = date.format("%a, %d %b %Y %H:%M:%S UTC").to_string();
-        self = self.set_header("Date", &date);
-        self
+        self.set_header("Date", &date)
+    }
+
+    pub fn set_content_type(self, content_type: &str) -> Self {
+        self.set_header("Content-Type", content_type)
     }
 
     pub fn set_html_body(mut self, body: &str) -> Self {
         let body = format!("{}\r\n", body);
         let length = body.len().to_string();
 
-        self.response.body = body;
-        self = self.set_header("Content-Type", "text/html");
-        self = self.set_header("Content-Length", &length);
-
-        self
+        self.response.body = body.into_bytes();
+        self.set_content_type("text/html")
+            .set_header("Content-Length", &length)
     }
 
     pub fn set_json_body<T: Serialize>(mut self, body: &T) -> Result<Self> {
@@ -86,10 +87,18 @@ impl HttpResponseBuilder {
         let body = format!("{}\r\n", body);
         let length = body.len().to_string();
 
+        self.response.body = body.into_bytes();
+        Ok(self
+            .set_content_type("application/json")
+            .set_header("Content-Length", &length))
+    }
+
+    pub fn set_raw_body(mut self, body: Vec<u8>) -> Self {
+        let length = body.len().to_string();
+
         self.response.body = body;
-        self = self.set_header("Content-Type", "application/json");
-        self = self.set_header("Content-Length", &length);
-        Ok(self)
+        self.set_content_type("application/octet-stream")
+            .set_header("Content-Length", &length)
     }
 }
 
@@ -106,7 +115,8 @@ Content-Length: 20\r\n\
 Content-Type: text/html\r\n\
 Date: Tue, 29 Oct 2024 16:56:32 UTC\r\n\
 Set-Cookie: User=jhondoe; SameSite=Lax; Secure\r\n\
-Set-Cookie: foo=bar; HttpOnly; Path=/some/path\r\n\r\n<p>Hello World</p>\r\n";
+Set-Cookie: foo=bar; HttpOnly; Path=/some/path\r\n\r\n<p>Hello World</p>\r\n"
+            .as_bytes();
 
         let expires = DateTime::parse_from_rfc2822("Tue, 29 Oct 2024 16:56:32 +0000")
             .unwrap()
@@ -128,7 +138,7 @@ Set-Cookie: foo=bar; HttpOnly; Path=/some/path\r\n\r\n<p>Hello World</p>\r\n";
             )
             .build()
             .unwrap()
-            .to_string()
+            .to_bytes()
             .unwrap();
 
         assert_eq!(expected, actual);

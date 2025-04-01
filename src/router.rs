@@ -186,7 +186,7 @@ mod tests {
         .unwrap();
 
         let response = router.handle_request(&request).unwrap();
-        assert_eq!("Hello World!\r\n", response.body);
+        assert_eq!("Hello World!\r\n".as_bytes(), response.body);
     }
 
     #[test]
@@ -201,7 +201,7 @@ mod tests {
         .unwrap();
 
         let response = router.handle_request(&request).unwrap();
-        assert_eq!("Hello World!\r\n", response.body);
+        assert_eq!("Hello World!\r\n".as_bytes(), response.body);
     }
 
     #[test]
@@ -216,6 +216,6 @@ mod tests {
         .unwrap();
 
         let response = router.handle_request(&request).unwrap();
-        assert_eq!("{\"created\":true}\r\n", response.body);
+        assert_eq!("{\"created\":true}\r\n".as_bytes(), response.body);
     }
 }

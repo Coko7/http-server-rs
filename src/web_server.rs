@@ -92,8 +92,8 @@ fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Resul
         .lock()
         .unwrap()
         .handle_request(&request)?
-        .to_string()?;
+        .to_bytes()?;
 
-    stream.write_all(response.as_bytes())?;
+    stream.write_all(&response)?;
     Ok(())
 }

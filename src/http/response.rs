@@ -1,7 +1,6 @@
-use std::collections::BTreeMap;
-
 use anyhow::{anyhow, Result};
 use log::trace;
+use std::collections::BTreeMap;
 
 use super::{HttpCookie, HttpHeader, HttpVersion};
 
@@ -11,7 +10,7 @@ pub struct HttpResponse {
     pub status: String,
     pub headers: BTreeMap<String, HttpHeader>,
     pub cookies: BTreeMap<String, HttpCookie>,
-    pub body: String,
+    pub body: Vec<u8>,
 }
 
 impl Default for HttpResponse {
@@ -27,7 +26,7 @@ impl HttpResponse {
             status: "200 OK".to_owned(),
             headers: BTreeMap::new(),
             cookies: BTreeMap::new(),
-            body: String::new(),
+            body: Vec::new(),
         }
     }
 
@@ -35,26 +34,29 @@ impl HttpResponse {
         format!("{} {}", self.version, self.status)
     }
 
-    pub fn to_string(&self) -> Result<String> {
+    pub fn to_bytes(&self) -> Result<Vec<u8>> {
         if self.status.is_empty() {
             return Err(anyhow!("status must be set on response"));
         }
-        let mut response = format!("{}\r\n", self.start_line());
-        trace!("{:?}", response);
+        let mut head = format!("{}\r\n", self.start_line());
+        trace!("{:?}", head);
 
         for (_, header) in self.headers.iter() {
             let header = format!("{}: {}\r\n", header.name, header.value);
-            response.push_str(&header);
+            head.push_str(&header);
         }
 
         for (_, cookie) in self.cookies.iter() {
             let cookie = cookie.to_str()?;
             let header = format!("Set-Cookie: {}\r\n", cookie);
-            response.push_str(&header);
+            head.push_str(&header);
         }
 
-        response.push_str("\r\n");
-        response.push_str(&self.body);
+        head.push_str("\r\n");
+
+        let response_head = head.as_bytes();
+        let body = &self.body;
+        let response: Vec<u8> = [response_head, body].concat();
 
         Ok(response)
     }
