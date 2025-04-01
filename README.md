@@ -14,12 +14,12 @@ Should never be used in production for obvious reasons 💀
 - [x] Routing 🚆
 - [x] Multi-threading 🤹
 - [x] Headers + cookies 🍪
+- [ ] MIME support 🎭
 - [ ] HTTPS 🛡️
 - [ ] Improved routing 🚄 (W.I.P)
 
-## Usage (OUTDATED docs)
+## Usage example
 
-⚠️ The following is outdated:
 ```rs
 use anyhow::Result;
 use http_server::http::{HttpRequest, HttpResponse, HttpResponseBuilder};
@@ -27,12 +27,19 @@ use http_server::web_server::WebServer;
 use std::fs;
 
 fn main() -> Result<()> {
-    let server = WebServer::new("127.0.0.1:7878")?
-        .route("GET /hello", get_hello)?
-        .route("GET /mirror", get_mirror)?
-        .route("GET /*", get_404)?;
+    let router = Router::new()
+        // get routes
+        .get("/", routes::get_hello)?
+        .get("/hello", routes::get_hello)?
+        .get("/mirror", routes::get_mirror)?
+        // post route
+        .post("/paste", routes::post_paste_data)?
+        // 404 Catch all
+        .get("/*", routes::get_404)?;
 
+    let server = WebServer::new("127.0.0.1:7878", router)?;
     server.run()
+
     Ok(())
 }
 
@@ -45,6 +52,25 @@ pub fn get_hello(request: &HttpRequest) -> Result<HttpResponse> {
 
 pub fn get_mirror(request: &HttpRequest) -> Result<HttpResponse> {
     HttpResponseBuilder::new().set_json_body(request)?.build()
+}
+
+pub fn post_paste_data(request: &HttpRequest) -> Result<HttpResponse> {
+    let body = request.body.clone().unwrap_or(String::new());
+    if body.len() > 1_000_000 {
+        return HttpResponseBuilder::new()
+            .set_status(HttpStatusCode::BadRequest)
+            .set_json_body(
+                &json!({"status": "400 Bad Request", "message": "too many characters!"}),
+            )?
+            .build();
+    }
+
+    // Do stuff...
+
+    HttpResponseBuilder::new()
+        .set_status(HttpStatusCode::OK)
+        .set_json_body(&json!({"status": "200 OK", "message": "data has been saved"}))?
+        .build()
 }
 
 pub fn get_404(_request: &HttpRequest) -> Result<HttpResponse> {
