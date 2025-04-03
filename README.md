@@ -15,8 +15,10 @@ Should never be used in production for obvious reasons 💀
 - [x] Multi-threading 🤹
 - [x] Headers + cookies 🍪
 - [ ] MIME support 🎭
+    - [x] support for file download (`HttpResponse.body` is now `[u8]`)
 - [ ] HTTPS 🛡️
 - [ ] Improved routing 🚄 (W.I.P)
+    - [ ] support for dynamic paths: `/foo/{:id}/bar`
 
 ## Usage example
 
