@@ -34,7 +34,7 @@ impl HttpResponseBuilder {
             return Err(anyhow!("status must be set on response"));
         }
 
-        trace!("{:#?}", self.response);
+        trace!("{:?}", self.response);
         Ok(self.response)
     }
 

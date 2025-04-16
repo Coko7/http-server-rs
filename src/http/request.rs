@@ -6,7 +6,7 @@ use crate::http::request_raw::HttpRequestRaw;
 
 use super::{HttpCookie, HttpHeader, HttpMethod, HttpVersion};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HttpRequest {
     pub method: HttpMethod,
     pub resource_path: String,
@@ -117,5 +117,140 @@ impl HttpRequest {
         }
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_request_line() {
+        let expected = (HttpMethod::GET, "/home".to_owned(), HttpVersion::HTTP1_1);
+        let actual = HttpRequest::parse_request_line("GET /home HTTP/1.1").unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_parse_query_line() {
+        let mut expected: HashMap<String, String> = HashMap::new();
+        expected.insert("query".to_owned(), "This+is+a+query".to_owned());
+        expected.insert("mode".to_owned(), "foo".to_owned());
+        expected.insert("Format".to_owned(), "json".to_owned());
+
+        let query_line = "query=This+is+a+query&mode=foo&Format=json";
+        let actual = HttpRequest::parse_query_line(&query_line).unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_from_raw_request_simple_get() {
+        let expected = HttpRequest {
+            method: HttpMethod::GET,
+            resource_path: "/api/weather".to_owned(),
+            version: HttpVersion::HTTP1_1,
+            url: "/api/weather".to_owned(),
+            query: HashMap::new(),
+            headers: HashMap::new(),
+            cookies: HashMap::new(),
+            body: vec![],
+        };
+
+        let raw_request = HttpRequestRaw {
+            request_line: "GET /api/weather HTTP/1.1".to_owned(),
+            headers: vec![],
+            body: vec![],
+        };
+
+        let actual = HttpRequest::from_raw_request(raw_request).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_from_raw_request_get_with_query() {
+        let mut query_params = HashMap::new();
+        query_params.insert("country".to_owned(), "France".to_owned());
+        query_params.insert("city".to_owned(), "Paris".to_owned());
+
+        let expected = HttpRequest {
+            method: HttpMethod::GET,
+            resource_path: "/api/weather?country=France&city=Paris".to_owned(),
+            version: HttpVersion::HTTP1_1,
+            url: "/api/weather".to_owned(),
+            query: query_params,
+            headers: HashMap::new(),
+            cookies: HashMap::new(),
+            body: vec![],
+        };
+
+        let raw_request = HttpRequestRaw {
+            request_line: "GET /api/weather?country=France&city=Paris HTTP/1.1".to_owned(),
+            headers: vec![],
+            body: vec![],
+        };
+
+        let actual = HttpRequest::from_raw_request(raw_request).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_from_raw_request_get_with_headers() {
+        let mut headers = HashMap::new();
+        headers.insert(
+            "Authorization".to_owned(),
+            HttpHeader::new("Authorization", "Bearer JWT"),
+        );
+        headers.insert(
+            "X-CSRF-Token".to_owned(),
+            HttpHeader::new("X-CSRF-Token", "HelloWorld"),
+        );
+
+        let expected = HttpRequest {
+            method: HttpMethod::GET,
+            resource_path: "/api/weather".to_owned(),
+            version: HttpVersion::HTTP1_1,
+            url: "/api/weather".to_owned(),
+            query: HashMap::new(),
+            headers: headers.clone(),
+            cookies: HashMap::new(),
+            body: vec![],
+        };
+
+        let headers_vec: Vec<HttpHeader> = headers.values().cloned().collect();
+        let raw_request = HttpRequestRaw {
+            request_line: "GET /api/weather HTTP/1.1".to_owned(),
+            headers: headers_vec,
+            body: vec![],
+        };
+
+        let actual = HttpRequest::from_raw_request(raw_request).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_from_raw_request_post_body() {
+        let body_bytes = "username:john,password:doe".as_bytes();
+
+        let expected = HttpRequest {
+            method: HttpMethod::POST,
+            resource_path: "/users".to_owned(),
+            version: HttpVersion::HTTP1_1,
+            url: "/users".to_owned(),
+            query: HashMap::new(),
+            headers: HashMap::new(),
+            cookies: HashMap::new(),
+            body: body_bytes.to_vec(),
+        };
+
+        let raw_request = HttpRequestRaw {
+            request_line: "POST /users HTTP/1.1".to_owned(),
+            headers: vec![],
+            body: body_bytes.to_vec(),
+        };
+
+        let actual = HttpRequest::from_raw_request(raw_request).unwrap();
+        assert_eq!(expected, actual);
     }
 }

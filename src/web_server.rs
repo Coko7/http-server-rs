@@ -83,13 +83,13 @@ fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Resul
     if !request.body.is_empty() {
         request_dbg.push_str(">>> BODY <<<\r\n");
         match String::from_utf8(request.body.clone()) {
-            Ok(value) => request_dbg.push_str(format!("{}\r\n", value).as_str()),
+            Ok(value) => request_dbg.push_str(format!("::TEXT DATA::\r\n{}\r\n", value).as_str()),
             Err(e) => {
                 trace!(
                     "failed to parse to UTF8 str -> likely got binary body: {}",
                     e
                 );
-                request_dbg.push_str("BINARY DATA");
+                request_dbg.push_str("::BINARY DATA::\r\n");
             }
         }
     }
