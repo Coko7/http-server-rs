@@ -18,7 +18,7 @@ impl HttpRequestRaw {
 
         let mut request_line = String::new();
         let mut headers = Vec::new();
-        let body = Vec::new();
+        let mut body = Vec::new();
 
         buf_reader.read_line(&mut request_line)?;
 
@@ -45,7 +45,7 @@ impl HttpRequestRaw {
         {
             let content_len: usize = content_len.value.parse()?;
             if content_len > 0 {
-                let mut body = vec![0; content_len];
+                body = vec![0; content_len];
                 buf_reader.read_exact(&mut body)?;
             }
         }
