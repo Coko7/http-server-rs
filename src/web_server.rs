@@ -80,8 +80,9 @@ fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Resul
         request_dbg.push_str(format!("{}: {}\r\n", header.name, header.value).as_str());
     }
 
-    if let Some(ref body) = request.body {
+    if !request.body.is_empty() {
         request_dbg.push_str(">>> BODY <<<\r\n");
+        let body = String::from_utf8(request.body.clone())?;
         request_dbg.push_str(format!("{}\r\n", body).as_str());
     }
 

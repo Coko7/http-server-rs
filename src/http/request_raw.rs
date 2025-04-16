@@ -9,7 +9,7 @@ use super::HttpHeader;
 pub struct HttpRequestRaw {
     pub request_line: String,
     pub headers: Vec<HttpHeader>,
-    pub body: Option<String>,
+    pub body: Vec<u8>,
 }
 
 impl HttpRequestRaw {
@@ -18,7 +18,7 @@ impl HttpRequestRaw {
 
         let mut request_line = String::new();
         let mut headers = Vec::new();
-        let mut body = String::new();
+        let body = Vec::new();
 
         buf_reader.read_line(&mut request_line)?;
 
@@ -45,13 +45,10 @@ impl HttpRequestRaw {
         {
             let content_len: usize = content_len.value.parse()?;
             if content_len > 0 {
-                let mut buffer = vec![0; content_len];
-                buf_reader.read_exact(&mut buffer)?;
-                body = String::from_utf8(buffer)?;
+                let mut body = vec![0; content_len];
+                buf_reader.read_exact(&mut body)?;
             }
         }
-
-        let body = if !body.is_empty() { Some(body) } else { None };
 
         Ok(HttpRequestRaw {
             request_line,

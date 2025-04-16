@@ -17,7 +17,7 @@ pub struct HttpRequest {
 
     pub headers: HashMap<String, HttpHeader>,
     pub cookies: HashMap<String, HttpCookie>,
-    pub body: Option<String>,
+    pub body: Vec<u8>,
 }
 
 impl HttpRequest {
@@ -74,6 +74,10 @@ impl HttpRequest {
 
     pub fn method(&self) -> &HttpMethod {
         &self.method
+    }
+
+    pub fn str_body(&self) -> Result<String> {
+        Ok(String::from_utf8(self.body.clone())?)
     }
 
     pub fn parse_request_line(start_line: &str) -> Result<(HttpMethod, String, HttpVersion)> {

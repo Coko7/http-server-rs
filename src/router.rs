@@ -166,7 +166,7 @@ mod tests {
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
             request_line: "GET /hello HTTP/1.1".to_owned(),
             headers: Vec::new(),
-            body: None,
+            body: vec![],
         })
         .unwrap();
 
@@ -181,7 +181,7 @@ mod tests {
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
             request_line: "GET /not-a-real-page HTTP/1.1".to_owned(),
             headers: Vec::new(),
-            body: None,
+            body: vec![],
         })
         .unwrap();
 
@@ -196,7 +196,7 @@ mod tests {
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
             request_line: "GET /hello HTTP/1.1".to_owned(),
             headers: Vec::new(),
-            body: None,
+            body: vec![],
         })
         .unwrap();
 
@@ -211,7 +211,7 @@ mod tests {
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
             request_line: "POST /user HTTP/1.1".to_owned(),
             headers: Vec::new(),
-            body: None,
+            body: vec![],
         })
         .unwrap();
 
