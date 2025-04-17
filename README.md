@@ -1,4 +1,4 @@
-# 🌐 http-server-rs
+# 🌐 rtfw-http-rs
 
 ![build](https://github.com/coko7/http-server-rs/actions/workflows/rust.yml/badge.svg)
 
