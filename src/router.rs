@@ -1,14 +1,24 @@
 use anyhow::{anyhow, Context, Result};
-use log::trace;
-use std::{collections::HashMap, str::FromStr};
+use log::{trace, warn};
+use std::{
+    collections::HashMap,
+    fs,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
-use crate::http::{HttpMethod, HttpRequest, HttpResponse};
+use crate::http::{
+    response_status_codes::HttpStatusCode, HttpMethod, HttpRequest, HttpResponse,
+    HttpResponseBuilder,
+};
 
 type RoutingCallback = fn(&HttpRequest) -> Result<HttpResponse>;
+type StaticFilesMount = (String, String);
 
 #[derive(Debug)]
 pub struct Router {
     pub routes: HashMap<Route, RoutingCallback>,
+    pub file_server: Option<StaticFilesMount>,
 }
 
 impl Default for Router {
@@ -21,6 +31,7 @@ impl Router {
     pub fn new() -> Self {
         Router {
             routes: HashMap::new(),
+            file_server: None,
         }
     }
 
@@ -28,6 +39,33 @@ impl Router {
         let route_def = format!("{} {}", request.method, request.url);
         let route = Route::from_str(&route_def)?;
         trace!("trying to match route: {route_def}");
+
+        if let Some(file_server) = &self.file_server {
+            let (route_prefix, dir_path) = file_server;
+            if let Some(filename) = route.path.strip_prefix(route_prefix) {
+                let safe_filename = match Path::new(filename).file_name() {
+                    Some(filename) => Ok(filename.to_owned()),
+                    None => Err(anyhow!("not a file: {filename}")),
+                };
+
+                if let Err(e) = safe_filename {
+                    warn!("failed to serve file '{filename}': {e}");
+                    return HttpResponseBuilder::new()
+                        .set_status(HttpStatusCode::BadRequest)
+                        .build();
+                }
+
+                let safe_filename = safe_filename.unwrap();
+                let filepath = PathBuf::from(dir_path).join(safe_filename);
+                let mime_type = mime_guess::from_path(&filepath).first_or_octet_stream();
+                let content = fs::read(filepath)?;
+
+                return HttpResponseBuilder::new()
+                    .set_raw_body(content)
+                    .set_content_type(mime_type.as_ref())
+                    .build();
+            }
+        }
 
         let response = if let Some(route_callback) = self.routes.get(&route) {
             route_callback(request)
@@ -69,6 +107,11 @@ impl Router {
 
         self.routes.insert(route, callback);
         Ok(())
+    }
+
+    pub fn setup_file_serving(mut self, route: &str, directory_path: &str) -> Result<Self> {
+        self.file_server = Some((route.to_owned(), directory_path.to_owned()));
+        Ok(self)
     }
 
     pub fn get(mut self, path: &str, callback: RoutingCallback) -> Result<Self> {
