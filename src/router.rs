@@ -57,6 +57,17 @@ impl Router {
 
                 let safe_filename = safe_filename.unwrap();
                 let filepath = PathBuf::from(dir_path).join(safe_filename);
+                if !filepath.exists() {
+                    let catch_all_route = Route::from_str("GET /*")?;
+                    if let Some(catch_all_callback) = self.routes.get(&catch_all_route) {
+                        return catch_all_callback(request);
+                    } else {
+                        return HttpResponseBuilder::new()
+                            .set_status(HttpStatusCode::NotFound)
+                            .build();
+                    }
+                }
+
                 let mime_type = mime_guess::from_path(&filepath).first_or_octet_stream();
                 let content = fs::read(filepath)?;
 
