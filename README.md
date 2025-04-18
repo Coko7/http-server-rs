@@ -17,6 +17,12 @@ Should never be used in production for obvious reasons 💀
 - [ ] MIME support 🎭
     - [x] support for file download (`HttpResponse.body` is now `Vec<u8>`)
     - [x] support for file upload (`HttpRequest.body` is now `Vec<u8>`)
+- [-] Body support
+    - [x] Bytes body
+    - [x] String body
+    - [-] Multipart body
+        - [x] Single part (useful for single file uploads)
+        - [ ] Multi parts
 - [ ] HTTPS 🛡️
 - [ ] Improved routing 🚄 (W.I.P)
     - [ ] support for dynamic paths: `/foo/{:id}/bar`

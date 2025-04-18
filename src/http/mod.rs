@@ -1,6 +1,7 @@
 pub mod cookie;
 pub mod header;
 pub mod method;
+pub mod multipart;
 pub mod request;
 pub mod request_raw;
 pub mod response;
@@ -11,6 +12,8 @@ pub mod version;
 pub use self::cookie::HttpCookie;
 pub use self::header::HttpHeader;
 pub use self::method::HttpMethod;
+pub use self::multipart::MultipartBody;
+pub use self::multipart::MultipartBodyPart;
 pub use self::request::HttpRequest;
 pub use self::request_raw::HttpRequestRaw;
 pub use self::response::HttpResponse;

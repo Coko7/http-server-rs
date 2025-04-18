@@ -1,10 +1,9 @@
 use anyhow::{anyhow, Context, Result};
+use log::trace;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::TcpStream, str::FromStr};
 
-use crate::http::request_raw::HttpRequestRaw;
-
-use super::{HttpCookie, HttpHeader, HttpMethod, HttpVersion};
+use super::{HttpCookie, HttpHeader, HttpMethod, HttpRequestRaw, HttpVersion, MultipartBody};
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct HttpRequest {
@@ -76,8 +75,24 @@ impl HttpRequest {
         &self.method
     }
 
-    pub fn str_body(&self) -> Result<String> {
+    pub fn get_str_body(&self) -> Result<String> {
         Ok(String::from_utf8(self.body.clone())?)
+    }
+
+    pub fn get_multipart_body(&self) -> Result<MultipartBody> {
+        let content_type = self
+            .headers
+            .get("Content-Type")
+            .context("cannot process multipart body because Content-Type header is missing")?;
+
+        let multipart_boundary = content_type
+            .value
+            .strip_prefix("multipart/form-data; boundary=")
+            .context("boundary is required with multipart body")?;
+
+        trace!("header boundary: {multipart_boundary}");
+
+        MultipartBody::from_bytes(multipart_boundary, &self.body)
     }
 
     pub fn parse_request_line(start_line: &str) -> Result<(HttpMethod, String, HttpVersion)> {
