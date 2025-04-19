@@ -23,7 +23,7 @@ impl FileServer {
         }
     }
 
-    pub fn add_dir_mount(mut self, route: &str, dir_path: &str) -> Result<Self> {
+    pub fn map_dir(mut self, route: &str, dir_path: &str) -> Result<Self> {
         let mount_point = MountPoint {
             route: route.to_owned(),
             fs_path: PathBuf::from(dir_path),
@@ -38,8 +38,10 @@ impl FileServer {
     }
 
     pub fn map_file(mut self, route: &str, file_path: &str) -> Result<Self> {
+        let route = route.strip_suffix('/').unwrap_or(route).to_owned();
+
         let mount_point = MountPoint {
-            route: route.to_owned(),
+            route,
             fs_path: PathBuf::from(file_path),
             is_directory: false,
         };
@@ -136,24 +138,24 @@ impl Router {
         let route = Route::from_str(&route_def)?;
         trace!("trying to match route: {route_def}");
 
-        if let Some(file_server) = &self.file_server {
-            match file_server.handle_static_file_access(&route.path) {
-                Ok(file_path) => {
-                    let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
-                    let content = fs::read(file_path)?;
-
-                    return HttpResponseBuilder::new()
-                        .set_raw_body(content)
-                        .set_content_type(mime_type.as_ref())
-                        .build();
-                }
-                Err(e) => warn!("failed to match file: {e}"),
-            }
-        }
-
         let response = if let Some(route_callback) = self.routes.get(&route) {
             route_callback(request)
         } else {
+            if let Some(file_server) = &self.file_server {
+                match file_server.handle_static_file_access(&route.path) {
+                    Ok(file_path) => {
+                        let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
+                        let content = fs::read(file_path)?;
+
+                        return HttpResponseBuilder::new()
+                            .set_raw_body(content)
+                            .set_content_type(mime_type.as_ref())
+                            .build();
+                    }
+                    Err(e) => warn!("failed to match file: {e}"),
+                }
+            }
+
             let catch_all_route = Route::from_str("GET /*")?;
             if let Some(catch_all_callback) = self.routes.get(&catch_all_route) {
                 return catch_all_callback(request);
@@ -249,16 +251,11 @@ impl FromStr for Route {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let (verb, path) = s.split_once(" ").context("route should have: VERB PATH")?;
-        let verb = HttpMethod::from_str(verb)?;
+        let (method, path) = s.split_once(" ").context("route should have: VERB PATH")?;
+        let method = HttpMethod::from_str(method)?;
+        let path = path.strip_suffix('/').unwrap_or(path).to_owned();
 
-        let path = if path.ends_with('/') {
-            path.to_owned()
-        } else {
-            format!("{}/", path)
-        };
-
-        Ok(Route { method: verb, path })
+        Ok(Route { method, path })
     }
 }
 
