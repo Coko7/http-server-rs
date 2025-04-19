@@ -1,7 +1,7 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{bail, Context, Result};
 use std::{
     collections::HashMap,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 #[derive(Debug, Hash, PartialEq, Eq)]
@@ -29,8 +29,13 @@ impl FileServer {
         }
     }
 
+    fn is_safe_relative_subpath(path: &Path) -> bool {
+        !path.is_absolute() && path.components().all(|comp| comp != Component::ParentDir)
+    }
+
     fn map(mut self, route: &str, fs_path: &str, is_directory: bool) -> Result<Self> {
-        let route = route.strip_suffix('/').unwrap_or(route);
+        let route = route.trim_matches('/');
+
         let mount_point = MountPoint {
             route: route.to_owned(),
             fs_path: PathBuf::from(fs_path),
@@ -56,19 +61,12 @@ impl FileServer {
         self.map(route, file_path, false)
     }
 
-    fn get_file(file_path: PathBuf) -> Result<PathBuf> {
-        if !file_path.exists() {
-            bail!("file not found: {}", file_path.display());
+    fn get_file_path(&self, file: &str) -> Result<PathBuf> {
+        let file = file.trim_matches('/');
+        if !Self::is_safe_relative_subpath(Path::new(file)) {
+            bail!("file location is not safe: {file}");
         }
 
-        if !file_path.is_file() {
-            bail!("not a file: {}", file_path.display());
-        }
-
-        Ok(file_path)
-    }
-
-    pub fn handle_file_access(&self, file: &str) -> Result<PathBuf> {
         let file_path = self
             .mount_points
             .values()
@@ -77,7 +75,7 @@ impl FileServer {
             .map(|mp| mp.fs_path.clone());
 
         if let Some(file_path) = file_path {
-            return FileServer::get_file(file_path);
+            return Ok(file_path);
         }
 
         let dir_mount_point = self
@@ -89,24 +87,47 @@ impl FileServer {
         if let Some(dir_mount_point) = dir_mount_point {
             let file_name = file
                 .strip_prefix(&dir_mount_point.route)
-                .with_context(|| format!("file should have prefix: {}", dir_mount_point.route))?;
+                .with_context(|| format!("file should have prefix: {}", dir_mount_point.route))?
+                .trim_matches('/');
 
-            let safe_file_name = match Path::new(file_name).file_name() {
-                Some(filename) => Ok(filename.to_owned()),
-                None => Err(anyhow!("invalid file name: {file}")),
-            }?;
-
-            let file_path = dir_mount_point.fs_path.join(safe_file_name);
-            return Self::get_file(file_path);
+            return Ok(dir_mount_point.fs_path.join(file_name));
         }
 
-        bail!("failed to map file: {file}")
+        bail!("failed to get file path: {file}")
+    }
+
+    fn validate_file_exists(file_path: &Path) -> Result<()> {
+        if !file_path.exists() {
+            bail!("file not found: {}", file_path.display());
+        }
+
+        if !file_path.is_file() {
+            bail!("not a file: {}", file_path.display());
+        }
+
+        Ok(())
+    }
+
+    pub fn handle_file_access(&self, file: &str) -> Result<PathBuf> {
+        let file_path = self.get_file_path(file)?;
+        Self::validate_file_exists(&file_path)?;
+        Ok(file_path)
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::FileServer;
+
+    fn get_dummy_file_server() -> FileServer {
+        FileServer::new()
+            .map_file("/favicon.ico", "assets/favicon.ico")
+            .unwrap()
+            .map_dir("static", "assets/")
+            .unwrap()
+    }
 
     #[test]
     fn test_map_dir_ok() {
@@ -141,5 +162,47 @@ mod tests {
             .map_file("/favicon.ico", "relative/static/favicon.ico");
 
         assert!(fs.is_err());
+    }
+
+    #[test]
+    fn test_get_file_path_file_map_ok() {
+        let fs = get_dummy_file_server();
+        let actual_path = fs.get_file_path("/favicon.ico").unwrap();
+        assert_eq!(PathBuf::from("assets/favicon.ico"), actual_path)
+    }
+
+    #[test]
+    fn test_get_file_path_file_map_err() {
+        let fs = get_dummy_file_server();
+        let res = fs.get_file_path("/not-valid.txt");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_get_file_path_dir_map_ok() {
+        let fs = get_dummy_file_server();
+        let actual_path = fs.get_file_path("/static/dog.png").unwrap();
+        assert_eq!(PathBuf::from("assets/dog.png"), actual_path)
+    }
+
+    #[test]
+    fn test_get_file_path_dir_map_upward_traversal_err() {
+        let fs = get_dummy_file_server();
+        let res = fs.get_file_path("/static/../dog.png");
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_get_file_path_dir_map_nesting_ok() {
+        let fs = get_dummy_file_server();
+        let actual_path = fs.get_file_path("/static/animals/snake.gif").unwrap();
+        assert_eq!(PathBuf::from("assets/animals/snake.gif"), actual_path)
+    }
+
+    #[test]
+    fn test_get_file_path_dir_map_nesting2_ok() {
+        let fs = get_dummy_file_server();
+        let actual_path = fs.get_file_path("static/animals/birds/dove.jpeg/").unwrap();
+        assert_eq!(PathBuf::from("assets/animals/birds/dove.jpeg"), actual_path)
     }
 }
