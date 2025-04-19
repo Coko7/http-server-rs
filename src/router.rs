@@ -1,112 +1,13 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, Context, Result};
 use log::{trace, warn};
-use std::{
-    collections::{HashMap, HashSet},
-    fs,
-    path::{Path, PathBuf},
-    str::FromStr,
+use std::{collections::HashMap, fs, str::FromStr};
+
+use crate::{
+    file_server::FileServer,
+    http::{HttpMethod, HttpRequest, HttpResponse, HttpResponseBuilder},
 };
 
-use crate::http::{HttpMethod, HttpRequest, HttpResponse, HttpResponseBuilder};
-
 type RoutingCallback = fn(&HttpRequest) -> Result<HttpResponse>;
-
-#[derive(Debug)]
-pub struct FileServer {
-    pub mount_points: HashSet<MountPoint>,
-}
-
-impl FileServer {
-    pub fn new() -> Self {
-        Self {
-            mount_points: HashSet::new(),
-        }
-    }
-
-    pub fn map_dir(mut self, route: &str, dir_path: &str) -> Result<Self> {
-        let mount_point = MountPoint {
-            route: route.to_owned(),
-            fs_path: PathBuf::from(dir_path),
-            is_directory: true,
-        };
-
-        if !self.mount_points.insert(mount_point) {
-            bail!("directory mount already exists");
-        }
-
-        Ok(self)
-    }
-
-    pub fn map_file(mut self, route: &str, file_path: &str) -> Result<Self> {
-        let route = route.strip_suffix('/').unwrap_or(route).to_owned();
-
-        let mount_point = MountPoint {
-            route,
-            fs_path: PathBuf::from(file_path),
-            is_directory: false,
-        };
-
-        if !self.mount_points.insert(mount_point) {
-            bail!("a similar file map already exists");
-        }
-
-        Ok(self)
-    }
-
-    fn get_file(file_path: PathBuf) -> Result<PathBuf> {
-        if !file_path.exists() {
-            bail!("file not found: {}", file_path.display());
-        }
-
-        if !file_path.is_file() {
-            bail!("not a file: {}", file_path.display());
-        }
-
-        Ok(file_path)
-    }
-
-    pub fn handle_static_file_access(&self, file: &str) -> Result<PathBuf> {
-        let file_path = self
-            .mount_points
-            .iter()
-            .filter(|mp| !mp.is_directory)
-            .find(|mp| mp.route == file)
-            .map(|mp| mp.fs_path.clone());
-
-        if let Some(file_path) = file_path {
-            return FileServer::get_file(file_path);
-        }
-
-        let dir_mount_point = self
-            .mount_points
-            .iter()
-            .filter(|mp| mp.is_directory)
-            .find(|mp| file.starts_with(&mp.route));
-
-        if let Some(dir_mount_point) = dir_mount_point {
-            let file_name = file
-                .strip_prefix(&dir_mount_point.route)
-                .with_context(|| format!("file should have prefix: {}", dir_mount_point.route))?;
-
-            let safe_file_name = match Path::new(file_name).file_name() {
-                Some(filename) => Ok(filename.to_owned()),
-                None => Err(anyhow!("invalid file name: {file}")),
-            }?;
-
-            let file_path = dir_mount_point.fs_path.join(safe_file_name);
-            return Self::get_file(file_path);
-        }
-
-        bail!("failed to map file: {file}")
-    }
-}
-
-#[derive(Debug, Hash, PartialEq, Eq)]
-pub struct MountPoint {
-    pub route: String,
-    pub fs_path: PathBuf,
-    pub is_directory: bool,
-}
 
 #[derive(Debug)]
 pub struct Router {
@@ -142,7 +43,7 @@ impl Router {
             route_callback(request)
         } else {
             if let Some(file_server) = &self.file_server {
-                match file_server.handle_static_file_access(&route.path) {
+                match file_server.handle_file_access(&route.path) {
                     Ok(file_path) => {
                         let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
                         let content = fs::read(file_path)?;

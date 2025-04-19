@@ -1,3 +1,4 @@
+pub mod file_server;
 pub mod http;
 pub mod router;
 pub mod thread_pool;
