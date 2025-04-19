@@ -1,24 +1,115 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use log::{trace, warn};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fs,
     path::{Path, PathBuf},
     str::FromStr,
 };
 
-use crate::http::{
-    response_status_codes::HttpStatusCode, HttpMethod, HttpRequest, HttpResponse,
-    HttpResponseBuilder,
-};
+use crate::http::{HttpMethod, HttpRequest, HttpResponse, HttpResponseBuilder};
 
 type RoutingCallback = fn(&HttpRequest) -> Result<HttpResponse>;
-type StaticFilesMount = (String, String);
+
+#[derive(Debug)]
+pub struct FileServer {
+    pub mount_points: HashSet<MountPoint>,
+}
+
+impl FileServer {
+    pub fn new() -> Self {
+        Self {
+            mount_points: HashSet::new(),
+        }
+    }
+
+    pub fn add_dir_mount(mut self, route: &str, dir_path: &str) -> Result<Self> {
+        let mount_point = MountPoint {
+            route: route.to_owned(),
+            fs_path: PathBuf::from(dir_path),
+            is_directory: true,
+        };
+
+        if !self.mount_points.insert(mount_point) {
+            bail!("directory mount already exists");
+        }
+
+        Ok(self)
+    }
+
+    pub fn map_file(mut self, route: &str, file_path: &str) -> Result<Self> {
+        let mount_point = MountPoint {
+            route: route.to_owned(),
+            fs_path: PathBuf::from(file_path),
+            is_directory: false,
+        };
+
+        if !self.mount_points.insert(mount_point) {
+            bail!("a similar file map already exists");
+        }
+
+        Ok(self)
+    }
+
+    fn get_file(file_path: PathBuf) -> Result<PathBuf> {
+        if !file_path.exists() {
+            bail!("file not found: {}", file_path.display());
+        }
+
+        if !file_path.is_file() {
+            bail!("not a file: {}", file_path.display());
+        }
+
+        Ok(file_path)
+    }
+
+    pub fn handle_static_file_access(&self, file: &str) -> Result<PathBuf> {
+        let file_path = self
+            .mount_points
+            .iter()
+            .filter(|mp| !mp.is_directory)
+            .find(|mp| mp.route == file)
+            .map(|mp| mp.fs_path.clone());
+
+        if let Some(file_path) = file_path {
+            return FileServer::get_file(file_path);
+        }
+
+        let dir_mount_point = self
+            .mount_points
+            .iter()
+            .filter(|mp| mp.is_directory)
+            .find(|mp| file.starts_with(&mp.route));
+
+        if let Some(dir_mount_point) = dir_mount_point {
+            let file_name = file
+                .strip_prefix(&dir_mount_point.route)
+                .with_context(|| format!("file should have prefix: {}", dir_mount_point.route))?;
+
+            let safe_file_name = match Path::new(file_name).file_name() {
+                Some(filename) => Ok(filename.to_owned()),
+                None => Err(anyhow!("invalid file name: {file}")),
+            }?;
+
+            let file_path = dir_mount_point.fs_path.join(safe_file_name);
+            return Self::get_file(file_path);
+        }
+
+        bail!("failed to map file: {file}")
+    }
+}
+
+#[derive(Debug, Hash, PartialEq, Eq)]
+pub struct MountPoint {
+    pub route: String,
+    pub fs_path: PathBuf,
+    pub is_directory: bool,
+}
 
 #[derive(Debug)]
 pub struct Router {
     pub routes: HashMap<Route, RoutingCallback>,
-    pub file_server: Option<StaticFilesMount>,
+    pub file_server: Option<FileServer>,
 }
 
 impl Default for Router {
@@ -35,46 +126,28 @@ impl Router {
         }
     }
 
+    pub fn set_file_server(mut self, file_server: FileServer) -> Self {
+        self.file_server = Some(file_server);
+        self
+    }
+
     pub fn handle_request(&self, request: &HttpRequest) -> Result<HttpResponse> {
         let route_def = format!("{} {}", request.method, request.url);
         let route = Route::from_str(&route_def)?;
         trace!("trying to match route: {route_def}");
 
         if let Some(file_server) = &self.file_server {
-            let (route_prefix, dir_path) = file_server;
-            if let Some(filename) = route.path.strip_prefix(route_prefix) {
-                let safe_filename = match Path::new(filename).file_name() {
-                    Some(filename) => Ok(filename.to_owned()),
-                    None => Err(anyhow!("not a file: {filename}")),
-                };
+            match file_server.handle_static_file_access(&route.path) {
+                Ok(file_path) => {
+                    let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
+                    let content = fs::read(file_path)?;
 
-                if let Err(e) = safe_filename {
-                    warn!("failed to serve file '{filename}': {e}");
                     return HttpResponseBuilder::new()
-                        .set_status(HttpStatusCode::BadRequest)
+                        .set_raw_body(content)
+                        .set_content_type(mime_type.as_ref())
                         .build();
                 }
-
-                let safe_filename = safe_filename.unwrap();
-                let filepath = PathBuf::from(dir_path).join(safe_filename);
-                if !filepath.exists() {
-                    let catch_all_route = Route::from_str("GET /*")?;
-                    if let Some(catch_all_callback) = self.routes.get(&catch_all_route) {
-                        return catch_all_callback(request);
-                    } else {
-                        return HttpResponseBuilder::new()
-                            .set_status(HttpStatusCode::NotFound)
-                            .build();
-                    }
-                }
-
-                let mime_type = mime_guess::from_path(&filepath).first_or_octet_stream();
-                let content = fs::read(filepath)?;
-
-                return HttpResponseBuilder::new()
-                    .set_raw_body(content)
-                    .set_content_type(mime_type.as_ref())
-                    .build();
+                Err(e) => warn!("failed to match file: {e}"),
             }
         }
 
@@ -118,11 +191,6 @@ impl Router {
 
         self.routes.insert(route, callback);
         Ok(())
-    }
-
-    pub fn setup_file_serving(mut self, route: &str, directory_path: &str) -> Result<Self> {
-        self.file_server = Some((route.to_owned(), directory_path.to_owned()));
-        Ok(self)
     }
 
     pub fn get(mut self, path: &str, callback: RoutingCallback) -> Result<Self> {
