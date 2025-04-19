@@ -179,11 +179,7 @@ impl Router {
             format!("{}/", path)
         };
 
-        let route = Route {
-            method,
-            path: path.to_owned(),
-        };
-
+        let route = Route::new(method, &path);
         if self.routes.contains_key(&route) {
             return Err(anyhow!(
                 "cannot register route {:?} because a similar route already exists",
@@ -247,15 +243,21 @@ pub struct Route {
     pub path: String,
 }
 
+impl Route {
+    pub fn new(method: HttpMethod, path: &str) -> Route {
+        let path = path.strip_suffix('/').unwrap_or(path).to_owned();
+        Route { method, path }
+    }
+}
+
 impl FromStr for Route {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         let (method, path) = s.split_once(" ").context("route should have: VERB PATH")?;
         let method = HttpMethod::from_str(method)?;
-        let path = path.strip_suffix('/').unwrap_or(path).to_owned();
 
-        Ok(Route { method, path })
+        Ok(Route::new(method, path))
     }
 }
 
