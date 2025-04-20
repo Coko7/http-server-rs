@@ -30,6 +30,10 @@ Should never be used in production for obvious reasons 💀
 
 ## Usage example
 
+For an example webapp built using this HTTP server, checkout: [rtfw-webapp-sample-rs](https://github.com/RTFW-rs/rtfw-webapp-sample-rs)
+
+⚠️ The example code below might get outdated due to frequent refactors of the code. It's better to check the example webapp instead which is usel up-to-date.
+
 ```rs
 use anyhow::Result;
 use http_server::http::{HttpRequest, HttpResponse, HttpResponseBuilder};
