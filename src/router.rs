@@ -74,13 +74,8 @@ impl Router {
         path: &str,
         callback: RoutingCallback,
     ) -> Result<()> {
-        let path = if path.ends_with('/') {
-            path.to_owned()
-        } else {
-            format!("{}/", path)
-        };
-
         let route = Route::new(method, &path);
+
         if self.routes.contains_key(&route) {
             return Err(anyhow!(
                 "cannot register route {:?} because a similar route already exists",
@@ -146,7 +141,7 @@ pub struct Route {
 
 impl Route {
     pub fn new(method: HttpMethod, path: &str) -> Route {
-        let path = path.strip_suffix('/').unwrap_or(path).to_owned();
+        let path = path.trim_matches('/').to_owned();
         Route { method, path }
     }
 }

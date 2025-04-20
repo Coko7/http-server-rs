@@ -5,7 +5,7 @@ use std::{
 };
 
 #[derive(Debug, Hash, PartialEq, Eq)]
-pub struct MountPoint {
+struct MountPoint {
     pub route: String,
     pub fs_path: PathBuf,
     pub is_directory: bool,
@@ -13,7 +13,7 @@ pub struct MountPoint {
 
 #[derive(Debug)]
 pub struct FileServer {
-    pub mount_points: HashMap<String, MountPoint>,
+    mount_points: HashMap<String, MountPoint>,
 }
 
 impl Default for FileServer {
