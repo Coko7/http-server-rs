@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+#[derive(Debug, PartialEq, Eq)]
 pub enum HttpStatusCode {
     // 1XX
     Continue = 100,

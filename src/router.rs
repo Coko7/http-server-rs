@@ -1,17 +1,19 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{bail, Context, Result};
 use log::{trace, warn};
 use std::{collections::HashMap, fs, str::FromStr};
 
 use crate::{
     file_server::FileServer,
-    http::{HttpMethod, HttpRequest, HttpResponse, HttpResponseBuilder},
+    http::{
+        response_status_codes::HttpStatusCode, HttpMethod, HttpRequest, HttpResponse,
+        HttpResponseBuilder,
+    },
 };
-
-type RoutingCallback = fn(&HttpRequest) -> Result<HttpResponse>;
 
 #[derive(Debug)]
 pub struct Router {
-    pub routes: HashMap<Route, RoutingCallback>,
+    pub routes: HashMap<StoredRoute, RoutingCallback>,
+    pub catcher_routes: HashMap<HttpMethod, RoutingCallback>,
     pub file_server: Option<FileServer>,
 }
 
@@ -25,6 +27,7 @@ impl Router {
     pub fn new() -> Self {
         Router {
             routes: HashMap::new(),
+            catcher_routes: HashMap::new(),
             file_server: None,
         }
     }
@@ -34,38 +37,91 @@ impl Router {
         self
     }
 
+    fn find_matching_route(&self, route: &RequestRoute) -> Result<Option<&StoredRoute>> {
+        let mut excluded: Vec<&StoredRoute> = vec![];
+        let request_route_parts = route.path.split('/');
+
+        for (idx, part) in request_route_parts.enumerate() {
+            for match_candidate in self.routes.keys() {
+                if excluded.contains(&match_candidate) {
+                    continue;
+                };
+
+                if let Some(match_part) = match_candidate.parts.get(idx) {
+                    if !match_part.is_dynamic && !match_part.value.eq(part) {
+                        excluded.push(match_candidate);
+                    }
+                } else {
+                    excluded.push(match_candidate);
+                };
+            }
+        }
+
+        let selected_routes: Vec<&StoredRoute> = self
+            .routes
+            .keys()
+            .filter(|route| !excluded.contains(route))
+            .collect();
+
+        match selected_routes.len() {
+            0 => Ok(None),
+            1 => Ok(Some(selected_routes.first().unwrap())),
+            _ => bail!("multiple selected routes is not possible"),
+        }
+    }
+
     pub fn handle_request(&self, request: &HttpRequest) -> Result<HttpResponse> {
         let route_def = format!("{} {}", request.method, request.url);
-        let route = Route::from_str(&route_def)?;
+        let route = RequestRoute::from_str(&route_def)?;
         trace!("trying to match route: {route_def}");
 
-        let response = if let Some(route_callback) = self.routes.get(&route) {
-            route_callback(request)
-        } else {
-            if let Some(file_server) = &self.file_server {
-                match file_server.handle_file_access(&route.path) {
-                    Ok(file_path) => {
-                        let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
-                        let content = fs::read(file_path)?;
+        // test against declared routes
+        if let Ok(Some(matching_route)) = self.find_matching_route(&route) {
+            let routing_data = matching_route.extract_routing_data(&request.url)?;
+            let callback = self.routes.get(matching_route).context("expected route")?;
+            return callback(request, &routing_data);
+        }
 
-                        return HttpResponseBuilder::new()
-                            .set_raw_body(content)
-                            .set_content_type(mime_type.as_ref())
-                            .build();
-                    }
-                    Err(e) => warn!("failed to match file: {e}"),
+        // test against file server static mappings
+        if let Some(file_server) = &self.file_server {
+            match file_server.handle_file_access(&route.path) {
+                Ok(file_path) => {
+                    let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
+                    let content = fs::read(file_path)?;
+
+                    return HttpResponseBuilder::new()
+                        .set_raw_body(content)
+                        .set_content_type(mime_type.as_ref())
+                        .build();
                 }
+                Err(e) => warn!("failed to match file: {e}"),
             }
+        }
 
-            let catch_all_route = Route::from_str("GET /*")?;
-            if let Some(catch_all_callback) = self.routes.get(&catch_all_route) {
-                return catch_all_callback(request);
-            }
+        // test against catcher routes
+        if let Some(catcher) = self.catcher_routes.get(&request.method) {
+            return catcher(request, &RoutingData::default());
+        }
 
-            Err(anyhow!("failed to match route: {route_def}"))
-        };
+        HttpResponseBuilder::new()
+            .set_status(HttpStatusCode::NotFound)
+            .build()
+    }
 
-        response
+    pub fn add_catcher_route(
+        &mut self,
+        method: HttpMethod,
+        callback: RoutingCallback,
+    ) -> Result<()> {
+        if self.catcher_routes.contains_key(&method) {
+            bail!(
+                "cannot register catcher because one already exists for: {}",
+                method.to_string()
+            );
+        }
+
+        self.catcher_routes.insert(method, callback);
+        Ok(())
     }
 
     pub fn add_route(
@@ -74,13 +130,13 @@ impl Router {
         path: &str,
         callback: RoutingCallback,
     ) -> Result<()> {
-        let route = Route::new(method, &path);
+        let route = StoredRoute::new(method, path)?;
 
         if self.routes.contains_key(&route) {
-            return Err(anyhow!(
+            bail!(
                 "cannot register route {:?} because a similar route already exists",
                 route
-            ));
+            );
         }
 
         self.routes.insert(route, callback);
@@ -131,53 +187,151 @@ impl Router {
         self.add_route(HttpMethod::PATCH, path, callback)?;
         Ok(self)
     }
+
+    pub fn catch_all(mut self, method: HttpMethod, callback: RoutingCallback) -> Result<Self> {
+        self.add_catcher_route(method, callback)?;
+        Ok(self)
+    }
 }
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
-pub struct Route {
+pub struct StoredRoute {
+    pub method: HttpMethod,
+    pub path: String,
+    pub parts: Vec<RoutePart>,
+}
+
+impl StoredRoute {
+    pub fn new(method: HttpMethod, path: &str) -> Result<Self> {
+        let path = path.trim_matches('/').to_owned();
+
+        let mut parts = vec![];
+        for part in path.split('/') {
+            let is_dynamic = part.starts_with(':');
+            let value = if is_dynamic {
+                part[1..].to_string()
+            } else {
+                part.to_string()
+            };
+
+            if value.contains(':') {
+                bail!("nested `:` is not allowed in dynamic route part");
+            }
+
+            parts.push(RoutePart { is_dynamic, value });
+        }
+
+        Ok(Self {
+            method,
+            path,
+            parts,
+        })
+    }
+
+    pub fn extract_routing_data(&self, request_url: &str) -> Result<RoutingData> {
+        let request_parts: Vec<_> = request_url.split('/').filter(|p| !p.is_empty()).collect();
+
+        let mut params: HashMap<String, String> = HashMap::new();
+        for (idx, part) in self.parts.iter().enumerate() {
+            if !part.is_dynamic {
+                continue;
+            }
+
+            let part_value = *request_parts
+                .get(idx)
+                .context("part `{part_idx}` should exist")?;
+
+            params.insert(part.value.to_owned(), part_value.to_owned());
+        }
+
+        Ok(RoutingData { params })
+    }
+}
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+pub struct RoutePart {
+    pub is_dynamic: bool,
+    pub value: String,
+}
+
+#[derive(Debug, Hash, Eq, PartialEq, Clone)]
+pub struct RequestRoute {
     pub method: HttpMethod,
     pub path: String,
 }
 
-impl Route {
-    pub fn new(method: HttpMethod, path: &str) -> Route {
+impl RequestRoute {
+    pub fn new(method: HttpMethod, path: &str) -> RequestRoute {
         let path = path.trim_matches('/').to_owned();
-        Route { method, path }
+        RequestRoute { method, path }
     }
 }
 
-impl FromStr for Route {
+impl FromStr for RequestRoute {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
-        let (method, path) = s.split_once(" ").context("route should have: VERB PATH")?;
+        let (method, path) = s
+            .split_once(" ")
+            .context("route should have following format: METHOD PATH (ex: GET /index)")?;
         let method = HttpMethod::from_str(method)?;
 
-        Ok(Route::new(method, path))
+        Ok(RequestRoute::new(method, path))
     }
+}
+
+type RoutingCallback = fn(&HttpRequest, &RoutingData) -> Result<HttpResponse>;
+
+#[derive(Debug, Default)]
+pub struct RoutingData {
+    pub params: HashMap<String, String>,
 }
 
 #[cfg(test)]
 mod tests {
-    use serde_json::json;
+    use serde_json::{json, Value};
 
     use crate::http::{HttpRequestRaw, HttpResponseBuilder};
 
     use super::*;
 
-    fn get_hello_callback(_request: &HttpRequest) -> Result<HttpResponse> {
+    fn get_hello_callback(
+        _request: &HttpRequest,
+        _routing_data: &RoutingData,
+    ) -> Result<HttpResponse> {
         HttpResponseBuilder::new()
             .set_html_body("Hello World!")
             .build()
     }
 
-    fn post_user_callback(_request: &HttpRequest) -> Result<HttpResponse> {
+    fn get_user_by_id(_request: &HttpRequest, routing_data: &RoutingData) -> Result<HttpResponse> {
+        let id = routing_data.params.get("id").unwrap();
+        let username = format!("user_{id}");
+        let json = json!({ "username": username });
+
+        HttpResponseBuilder::new().set_json_body(&json)?.build()
+    }
+
+    fn get_user_info(_request: &HttpRequest, routing_data: &RoutingData) -> Result<HttpResponse> {
+        let id = routing_data.params.get("id").unwrap();
+        let info_field = routing_data.params.get("field").unwrap();
+
+        let username = format!("user_{id}");
+        let json = json!({ "username": username, "field": info_field });
+
+        HttpResponseBuilder::new().set_json_body(&json)?.build()
+    }
+
+    fn post_user_callback(
+        _request: &HttpRequest,
+        _routing_data: &RoutingData,
+    ) -> Result<HttpResponse> {
         let json = json!({ "created": true });
         HttpResponseBuilder::new().set_json_body(&json)?.build()
     }
 
     #[test]
-    fn test_unknown_route_err() {
+    fn test_unmatched_no_catcher() {
         let router = Router::new();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
@@ -187,13 +341,15 @@ mod tests {
         })
         .unwrap();
 
-        let response = router.handle_request(&request);
-        assert!(response.is_err());
+        let response = router.handle_request(&request).unwrap();
+        assert_eq!(HttpStatusCode::NotFound.to_string(), response.status);
     }
 
     #[test]
-    fn test_unknown_has_fallback() {
-        let router = Router::new().get("/*", get_hello_callback).unwrap();
+    fn test_unmatched_get_catcher() {
+        let router = Router::new()
+            .catch_all(HttpMethod::GET, get_hello_callback)
+            .unwrap();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
             request_line: "GET /not-a-real-page HTTP/1.1".to_owned(),
@@ -234,5 +390,42 @@ mod tests {
 
         let response = router.handle_request(&request).unwrap();
         assert_eq!("{\"created\":true}\r\n".as_bytes(), response.body);
+    }
+
+    #[test]
+    fn test_dynamic_route() {
+        let router = Router::new()
+            .get("/users/:id/details", get_user_by_id)
+            .unwrap();
+
+        let request = HttpRequest::from_raw_request(HttpRequestRaw {
+            request_line: "GET /users/5/details HTTP/1.1".to_owned(),
+            headers: Vec::new(),
+            body: vec![],
+        })
+        .unwrap();
+
+        let response = router.handle_request(&request).unwrap();
+        let actual_res: Value = serde_json::from_slice(&response.body).unwrap();
+        assert_eq!("user_5", actual_res["username"]);
+    }
+
+    #[test]
+    fn test_dynamic_route_multiparams() {
+        let router = Router::new()
+            .get("/users/:id/info/:field", get_user_info)
+            .unwrap();
+
+        let request = HttpRequest::from_raw_request(HttpRequestRaw {
+            request_line: "GET /users/17/info/gender HTTP/1.1".to_owned(),
+            headers: Vec::new(),
+            body: vec![],
+        })
+        .unwrap();
+
+        let response = router.handle_request(&request).unwrap();
+        let actual_res: Value = serde_json::from_slice(&response.body).unwrap();
+        let expected_result = json!({ "username": "user_17", "field": "gender"});
+        assert_eq!(expected_result, actual_res);
     }
 }
