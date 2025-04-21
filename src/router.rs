@@ -55,7 +55,7 @@ impl Router {
                 };
 
                 if let Some(match_part) = match_candidate.parts.get(idx) {
-                    if !match_part.is_dynamic && !match_part.value.eq(part) {
+                    if !match_part.is_dynamic && !match_part.name.eq(part) {
                         trace!(
                             "excluding server route from search because part differ and not dynamic: {:?}",
                             match_candidate
@@ -251,7 +251,10 @@ impl StoredRoute {
                 bail!("nested `:` is not allowed in dynamic route part");
             }
 
-            parts.push(RoutePart { is_dynamic, value });
+            parts.push(RoutePart {
+                is_dynamic,
+                name: value,
+            });
         }
 
         Ok(Self {
@@ -264,17 +267,18 @@ impl StoredRoute {
     pub fn extract_routing_data(&self, request_url: &str) -> Result<RoutingData> {
         let request_parts: Vec<_> = request_url.split('/').filter(|p| !p.is_empty()).collect();
 
-        let mut params: HashMap<String, String> = HashMap::new();
+        let mut params: HashMap<String, Option<String>> = HashMap::new();
         for (idx, part) in self.parts.iter().enumerate() {
             if !part.is_dynamic {
                 continue;
             }
 
-            let part_value = *request_parts
-                .get(idx)
-                .context("part `{part_idx}` should exist")?;
+            let value: Option<String> = match request_parts.get(idx) {
+                Some(&value) => Some(value.to_owned()),
+                None => None,
+            };
 
-            params.insert(part.value.to_owned(), part_value.to_owned());
+            params.insert(part.name.to_owned(), value);
         }
 
         Ok(RoutingData { params })
@@ -284,7 +288,7 @@ impl StoredRoute {
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
 pub struct RoutePart {
     pub is_dynamic: bool,
-    pub value: String,
+    pub name: String,
 }
 
 #[derive(Debug, Hash, Eq, PartialEq, Clone)]
@@ -317,7 +321,17 @@ type RoutingCallback = fn(&HttpRequest, &RoutingData) -> Result<HttpResponse>;
 
 #[derive(Debug, Default)]
 pub struct RoutingData {
-    pub params: HashMap<String, String>,
+    params: HashMap<String, Option<String>>,
+}
+
+impl RoutingData {
+    pub fn get_value(&self, param_name: &str) -> Result<Option<String>> {
+        if let Some(param_value) = self.params.get(param_name) {
+            Ok(param_value.to_owned())
+        } else {
+            bail!("no such route parameter: {param_name}")
+        }
+    }
 }
 
 #[cfg(test)]
@@ -356,7 +370,10 @@ mod tests {
     }
 
     fn get_user_by_id(_request: &HttpRequest, routing_data: &RoutingData) -> Result<HttpResponse> {
-        let id = routing_data.params.get("id").unwrap();
+        let id = routing_data
+            .get_value("id")
+            .unwrap()
+            .unwrap_or(String::new());
         let username = format!("user_{id}");
         let json = json!({ "username": username });
 
@@ -364,8 +381,15 @@ mod tests {
     }
 
     fn get_user_info(_request: &HttpRequest, routing_data: &RoutingData) -> Result<HttpResponse> {
-        let id = routing_data.params.get("id").unwrap();
-        let info_field = routing_data.params.get("field").unwrap();
+        let id = routing_data
+            .get_value("id")
+            .unwrap()
+            .unwrap_or(String::new());
+
+        let info_field = routing_data
+            .get_value("field")
+            .unwrap()
+            .unwrap_or(String::new());
 
         let username = format!("user_{id}");
         let json = json!({ "username": username, "field": info_field });
