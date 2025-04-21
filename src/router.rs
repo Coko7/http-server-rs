@@ -88,7 +88,8 @@ impl Router {
         trace!("trying to match route: {route_def}");
 
         // test against declared routes
-        if let Ok(Some(matching_route)) = self.find_matching_route(&route) {
+        let matching_result = self.find_matching_route(&route)?;
+        if let Some(matching_route) = matching_result {
             trace!("found matching server route: {:?}", matching_route);
             let routing_data = matching_route.extract_routing_data(&request.url)?;
             let callback = self
