@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use log::{trace, warn};
+use log::trace;
 use std::{collections::HashMap, fs, str::FromStr};
 
 use crate::{
@@ -40,6 +40,7 @@ impl Router {
     fn find_matching_route(&self, route: &RequestRoute) -> Result<Option<&StoredRoute>> {
         let mut excluded: Vec<&StoredRoute> = vec![];
         let request_route_parts = route.path.split('/');
+        trace!("trying to match request parts: {:?}", request_route_parts);
 
         for (idx, part) in request_route_parts.enumerate() {
             for match_candidate in self.routes.keys() {
@@ -49,9 +50,17 @@ impl Router {
 
                 if let Some(match_part) = match_candidate.parts.get(idx) {
                     if !match_part.is_dynamic && !match_part.value.eq(part) {
+                        trace!(
+                            "excluding server route from search because part differ and not dynamic: {:?}",
+                            match_candidate
+                        );
                         excluded.push(match_candidate);
                     }
                 } else {
+                    trace!(
+                        "excluding server route from search because too small: {:?}",
+                        match_candidate
+                    );
                     excluded.push(match_candidate);
                 };
             }
@@ -86,6 +95,7 @@ impl Router {
                 .routes
                 .get(matching_route)
                 .context("failed to get callback, even though route should be a valid key")?;
+
             return callback(request, &routing_data);
         }
 
@@ -307,6 +317,15 @@ mod tests {
 
     use super::*;
 
+    fn catcher_get_404(
+        _request: &HttpRequest,
+        _routing_data: &RoutingData,
+    ) -> Result<HttpResponse> {
+        HttpResponseBuilder::new()
+            .set_html_body("404 YOU ARE LOST")
+            .build()
+    }
+
     fn get_hello_callback(
         _request: &HttpRequest,
         _routing_data: &RoutingData,
@@ -360,7 +379,7 @@ mod tests {
     #[test]
     fn test_unmatched_get_catcher() {
         let router = Router::new()
-            .catch_all(HttpMethod::GET, get_hello_callback)
+            .catch_all(HttpMethod::GET, catcher_get_404)
             .unwrap();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
@@ -371,12 +390,16 @@ mod tests {
         .unwrap();
 
         let response = router.handle_request(&request).unwrap();
-        assert_eq!("Hello World!\r\n".as_bytes(), response.body);
+        assert_eq!("404 YOU ARE LOST\r\n".as_bytes(), response.body);
     }
 
     #[test]
     fn test_get_hello_html() {
-        let router = Router::new().get("/hello", get_hello_callback).unwrap();
+        let router = Router::new()
+            .get("/hello", get_hello_callback)
+            .unwrap()
+            .catch_all(HttpMethod::GET, catcher_get_404)
+            .unwrap();
 
         let request = HttpRequest::from_raw_request(HttpRequestRaw {
             request_line: "GET /hello HTTP/1.1".to_owned(),
