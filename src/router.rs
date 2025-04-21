@@ -37,13 +37,19 @@ impl Router {
         self
     }
 
-    fn find_matching_route(&self, route: &RequestRoute) -> Result<Option<&StoredRoute>> {
+    fn find_matching_route(&self, request_route: &RequestRoute) -> Result<Option<&StoredRoute>> {
         let mut excluded: Vec<&StoredRoute> = vec![];
-        let request_route_parts = route.path.split('/');
+        let request_route_parts = request_route.path.split('/');
         trace!("trying to match request parts: {:?}", request_route_parts);
 
+        let matching_candidates: Vec<_> = self
+            .routes
+            .keys()
+            .filter(|route| route.method == request_route.method)
+            .collect();
+
         for (idx, part) in request_route_parts.enumerate() {
-            for match_candidate in self.routes.keys() {
+            for match_candidate in matching_candidates.iter() {
                 if excluded.contains(&match_candidate) {
                     continue;
                 };
@@ -66,11 +72,15 @@ impl Router {
             }
         }
 
-        let selected_routes: Vec<&StoredRoute> = self
-            .routes
-            .keys()
+        let selected_routes: Vec<_> = matching_candidates
+            .iter()
             .filter(|route| !excluded.contains(route))
             .collect();
+
+        trace!(
+            "selected routes (should only have 1 or 0): {:?}",
+            selected_routes
+        );
 
         match selected_routes.len() {
             0 => Ok(None),
@@ -336,6 +346,15 @@ mod tests {
             .build()
     }
 
+    fn post_hello_callback(
+        _request: &HttpRequest,
+        _routing_data: &RoutingData,
+    ) -> Result<HttpResponse> {
+        HttpResponseBuilder::new()
+            .set_html_body("Hello World from POST!")
+            .build()
+    }
+
     fn get_user_by_id(_request: &HttpRequest, routing_data: &RoutingData) -> Result<HttpResponse> {
         let id = routing_data.params.get("id").unwrap();
         let username = format!("user_{id}");
@@ -398,6 +417,27 @@ mod tests {
     fn test_get_hello_html() {
         let router = Router::new()
             .get("/hello", get_hello_callback)
+            .unwrap()
+            .catch_all(HttpMethod::GET, catcher_get_404)
+            .unwrap();
+
+        let request = HttpRequest::from_raw_request(HttpRequestRaw {
+            request_line: "GET /hello HTTP/1.1".to_owned(),
+            headers: Vec::new(),
+            body: vec![],
+        })
+        .unwrap();
+
+        let response = router.handle_request(&request).unwrap();
+        assert_eq!("Hello World!\r\n".as_bytes(), response.body);
+    }
+
+    #[test]
+    fn test_get_hello_html_when_similar_route() {
+        let router = Router::new()
+            .get("/hello", get_hello_callback)
+            .unwrap()
+            .post("/hello", post_hello_callback)
             .unwrap()
             .catch_all(HttpMethod::GET, catcher_get_404)
             .unwrap();
