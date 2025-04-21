@@ -66,7 +66,10 @@ impl Router {
         match selected_routes.len() {
             0 => Ok(None),
             1 => Ok(Some(selected_routes.first().unwrap())),
-            _ => bail!("multiple selected routes is not possible"),
+            _ => bail!(
+                "multiple selected routes even though that should not happen: {:?}",
+                selected_routes
+            ),
         }
     }
 
@@ -77,13 +80,20 @@ impl Router {
 
         // test against declared routes
         if let Ok(Some(matching_route)) = self.find_matching_route(&route) {
+            trace!("found matching server route: {:?}", matching_route);
             let routing_data = matching_route.extract_routing_data(&request.url)?;
-            let callback = self.routes.get(matching_route).context("expected route")?;
+            let callback = self
+                .routes
+                .get(matching_route)
+                .context("failed to get callback, even though route should be a valid key")?;
             return callback(request, &routing_data);
         }
 
+        trace!("no matching server route, trying other options...");
+
         // test against file server static mappings
         if let Some(file_server) = &self.file_server {
+            trace!("attempting with file server");
             match file_server.handle_file_access(&route.path) {
                 Ok(file_path) => {
                     let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
@@ -94,15 +104,17 @@ impl Router {
                         .set_content_type(mime_type.as_ref())
                         .build();
                 }
-                Err(e) => warn!("failed to match file: {e}"),
+                Err(e) => trace!("no match with file server: {e}"),
             }
         }
 
         // test against catcher routes
         if let Some(catcher) = self.catcher_routes.get(&request.method) {
+            trace!("defaulting to catcher for {}", request.method.to_string());
             return catcher(request, &RoutingData::default());
         }
 
+        trace!("no default catcher, return 404");
         HttpResponseBuilder::new()
             .set_status(HttpStatusCode::NotFound)
             .build()

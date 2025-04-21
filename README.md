@@ -26,7 +26,7 @@ Should never be used in production for obvious reasons 💀
 - [ ] HTTPS 🛡️
 - [ ] Improved routing 🚄 (W.I.P)
     - [x] static file serving (using `mime_guess` for setting proper mime type)
-    - [x] support for dynamic paths: `/foo/{:id}/bar`
+    - [x] support for dynamic paths: `/foo/:id/bar`
 
 ## Usage example
 
