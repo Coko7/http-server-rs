@@ -46,8 +46,7 @@ impl WebServer {
             self.pool.execute(move || {
                 let result = handle_connection(router_clone, stream);
                 if let Err(result) = result {
-                    let error = format!("error: {}", result);
-                    error!("{}", error);
+                    error!("handle_connection failed: {}", result);
                 }
             });
         }
