@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::bail;
 use std::{fmt::Display, str::FromStr};
 
 use serde::{Deserialize, Serialize};
@@ -21,7 +21,7 @@ impl FromStr for HttpVersion {
             "" => HttpVersion::HTTP0_9,
             "HTTP/1.0" => HttpVersion::HTTP1_0,
             "HTTP/1.1" => HttpVersion::HTTP1_1,
-            value => return Err(anyhow!("unsupported HTTP version: {}", value)),
+            value => bail!("unsupported HTTP version: {}", value),
         })
     }
 }

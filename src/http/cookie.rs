@@ -4,7 +4,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{bail, Context, Result};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -23,7 +23,7 @@ impl FromStr for SameSitePolicy {
             "Strict" => SameSitePolicy::Strict,
             "Lax" => SameSitePolicy::Lax,
             "None" => SameSitePolicy::None,
-            value => return Err(anyhow!("unknown SameSite policy: {}", value)),
+            value => bail!("unknown SameSite policy: {}", value),
         })
     }
 }
@@ -97,11 +97,11 @@ impl HttpCookie {
         match Self::get_str_attribute(attributes, attribute) {
             Some(str_val) => match DateTime::parse_from_rfc2822(&str_val) {
                 Ok(date) => Ok(Some(date.with_timezone(&Utc))),
-                Err(error) => Err(anyhow!(
+                Err(error) => bail!(
                     "failed to parse string '{}' to DateTime<Utc>: {}",
                     str_val,
                     error
-                )),
+                ),
             },
             None => Ok(None),
         }
@@ -111,11 +111,7 @@ impl HttpCookie {
         match Self::get_str_attribute(attributes, attribute) {
             Some(str_val) => match str_val.parse::<i32>() {
                 Ok(num) => Ok(Some(num)),
-                Err(error) => Err(anyhow!(
-                    "failed to parse string '{}' to i32: {}",
-                    str_val,
-                    error
-                )),
+                Err(error) => bail!("failed to parse string '{}' to i32: {}", str_val, error),
             },
             None => Ok(None),
         }
@@ -127,7 +123,7 @@ impl HttpCookie {
 
     pub fn from_cookie_line(line: &str) -> Result<HttpCookie> {
         let attributes: Vec<_> = line
-            .split(";")
+            .split(';')
             .map(|attr| attr.trim())
             .map(str::to_string)
             .collect();
@@ -209,16 +205,16 @@ impl HttpCookie {
 
     fn validate(&self) -> Result<()> {
         if !is_name_valid(&self.name) {
-            return Err(anyhow!("invalid characters in cookie name. See MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie"));
+            bail!("invalid characters in cookie name. See MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie");
         }
 
         if !is_value_valid(&self.value) {
-            return Err(anyhow!("invalid characters in cookie value. See MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie"));
+            bail!("invalid characters in cookie value. See MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Set-Cookie");
         }
 
         if let Some(same_site) = self.same_site {
             if same_site == SameSitePolicy::None && !self.secure {
-                return Err(anyhow!("cookie with `SameSite=None` must have `Secure`"));
+                bail!("cookie with `SameSite=None` must have `Secure`");
             }
         }
 

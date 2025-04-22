@@ -1,4 +1,4 @@
-use anyhow::anyhow;
+use anyhow::bail;
 use serde::{Deserialize, Serialize};
 use std::{fmt::Display, str::FromStr};
 
@@ -29,7 +29,7 @@ impl FromStr for HttpMethod {
             "OPTIONS" => HttpMethod::OPTIONS,
             "TRACE" => HttpMethod::TRACE,
             "PATCH" => HttpMethod::PATCH,
-            value => return Err(anyhow!("unknown http verb: {}", value)),
+            value => bail!("unknown http verb: {}", value),
         })
     }
 }

@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use log::trace;
+use log::{debug, trace};
 use std::{collections::HashMap, fs, str::FromStr};
 
 use crate::{
@@ -50,7 +50,7 @@ impl Router {
 
         for (idx, part) in request_route_parts.enumerate() {
             for match_candidate in matching_candidates.iter() {
-                if excluded.contains(&match_candidate) {
+                if excluded.contains(match_candidate) {
                     continue;
                 };
 
@@ -95,12 +95,12 @@ impl Router {
     pub fn handle_request(&self, request: &HttpRequest) -> Result<HttpResponse> {
         let route_def = format!("{} {}", request.method, request.url);
         let route = RequestRoute::from_str(&route_def)?;
-        trace!("trying to match route: {route_def}");
+        debug!("trying to match route: {route_def}");
 
         // test against declared routes
         let matching_result = self.find_matching_route(&route)?;
         if let Some(matching_route) = matching_result {
-            trace!("found matching server route: {:?}", matching_route);
+            debug!("found matching server route: {:?}", matching_route);
             let routing_data = matching_route.extract_routing_data(&request.url)?;
             let callback = self
                 .routes
@@ -110,11 +110,11 @@ impl Router {
             return callback(request, &routing_data);
         }
 
-        trace!("no matching server route, trying other options...");
+        debug!("no matching server route, trying other options...");
 
         // test against file server static mappings
         if let Some(file_server) = &self.file_server {
-            trace!("attempting with file server");
+            debug!("attempting with file server");
             match file_server.handle_file_access(&route.path) {
                 Ok(file_path) => {
                     let mime_type = mime_guess::from_path(&file_path).first_or_octet_stream();
@@ -125,17 +125,17 @@ impl Router {
                         .set_content_type(mime_type.as_ref())
                         .build();
                 }
-                Err(e) => trace!("no match with file server: {e}"),
+                Err(e) => debug!("no match with file server: {e}"),
             }
         }
 
         // test against catcher routes
         if let Some(catcher) = self.catcher_routes.get(&request.method) {
-            trace!("defaulting to catcher for {}", request.method.to_string());
+            debug!("defaulting to catcher for {}", request.method.to_string());
             return catcher(request, &RoutingData::default());
         }
 
-        trace!("no default catcher, return 404");
+        debug!("no default catcher, return 404");
         HttpResponseBuilder::new()
             .set_status(HttpStatusCode::NotFound)
             .build()
@@ -273,11 +273,7 @@ impl StoredRoute {
                 continue;
             }
 
-            let value: Option<String> = match request_parts.get(idx) {
-                Some(&value) => Some(value.to_owned()),
-                None => None,
-            };
-
+            let value = request_parts.get(idx).map(|&value| value.to_owned());
             params.insert(part.name.to_owned(), value);
         }
 

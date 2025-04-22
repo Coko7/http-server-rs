@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{bail, Result};
 use log::trace;
 use std::collections::BTreeMap;
 
@@ -36,8 +36,9 @@ impl HttpResponse {
 
     pub fn to_bytes(&self) -> Result<Vec<u8>> {
         if self.status.is_empty() {
-            return Err(anyhow!("status must be set on response"));
+            bail!("status must be set on response");
         }
+
         let mut head = format!("{}\r\n", self.start_line());
         trace!("{:?}", head);
 

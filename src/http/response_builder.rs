@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{bail, Result};
 use chrono::{DateTime, Utc};
 use log::trace;
 use serde::Serialize;
@@ -31,7 +31,7 @@ impl HttpResponseBuilder {
 
     pub fn build(self) -> Result<HttpResponse> {
         if self.response.status.is_empty() {
-            return Err(anyhow!("status must be set on response"));
+            bail!("status must be set on response");
         }
 
         trace!("{:?}", self.response);

@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{bail, Context, Result};
 use log::trace;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, net::TcpStream, str::FromStr};
@@ -114,9 +114,7 @@ impl HttpRequest {
         let version = if let Some(version) = parts.next() {
             HttpVersion::from_str(version.trim())?
         } else {
-            return Err(anyhow!(
-                "sorry... HTTP/0.9 is temporarily not supported for convenience"
-            ));
+            bail!("sorry... HTTP/0.9 is temporarily not supported for convenience");
         };
 
         Ok((verb, resource_path, version))

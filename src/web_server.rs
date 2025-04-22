@@ -1,5 +1,5 @@
-use anyhow::Result;
-use log::{error, info, trace};
+use anyhow::{bail, Result};
+use log::{debug, error, info, trace};
 use std::{
     io::Write,
     net::{TcpListener, TcpStream},
@@ -39,7 +39,7 @@ impl WebServer {
         info!("awaiting connections...");
 
         for stream in self.listener.incoming() {
-            trace!("{}", "got new tcp connection!");
+            debug!("{}", "got new tcp connection!");
             let stream = stream?;
 
             let router_clone = Arc::clone(&self.router);
@@ -61,7 +61,12 @@ impl WebServer {
 }
 
 fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Result<()> {
-    let request = HttpRequest::from_tcp(&stream)?;
+    let request = HttpRequest::from_tcp(&stream);
+    if let Err(error) = request {
+        bail!("failed to create request from TCP: {error} (could be that client is trying to initiate a TLS handshake)");
+    }
+
+    let request = request?;
 
     let mut request_dbg = String::new();
     request_dbg.push_str("\r\n>>> Request START <<<\r\n");
@@ -94,7 +99,7 @@ fn handle_connection(router: Arc<Mutex<Router>>, mut stream: TcpStream) -> Resul
     }
 
     request_dbg.push_str(">>> Request END <<<\r\n");
-    trace!("{}", request_dbg);
+    debug!("{}", request_dbg);
 
     let response = router
         .lock()
