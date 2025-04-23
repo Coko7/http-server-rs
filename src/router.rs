@@ -321,11 +321,21 @@ pub struct RoutingData {
 }
 
 impl RoutingData {
-    pub fn get_value(&self, param_name: &str) -> Result<Option<String>> {
+    pub fn get_str_value(&self, param_name: &str) -> Result<Option<String>> {
         if let Some(param_value) = self.params.get(param_name) {
             Ok(param_value.to_owned())
         } else {
             bail!("no such route parameter: {param_name}")
+        }
+    }
+
+    pub fn get_value<T: FromStr>(&self, param_name: &str) -> Result<Option<T>> {
+        match self.get_str_value(param_name)? {
+            Some(str_value) => match str_value.parse::<T>() {
+                Ok(value) => Ok(Some(value)),
+                Err(_) => bail!("failed to parse value `{}` for: {}", str_value, param_name),
+            },
+            None => Ok(None),
         }
     }
 }
@@ -366,24 +376,26 @@ mod tests {
     }
 
     fn get_user_by_id(_request: &HttpRequest, routing_data: &RoutingData) -> Result<HttpResponse> {
-        let id = routing_data
-            .get_value("id")
-            .unwrap()
-            .unwrap_or(String::new());
-        let username = format!("user_{id}");
-        let json = json!({ "username": username });
+        if let Some(id) = routing_data.get_value::<u32>("id").unwrap() {
+            let username = format!("user_{id}");
+            let json = json!({ "id": id, "username": username });
 
-        HttpResponseBuilder::new().set_json_body(&json)?.build()
+            HttpResponseBuilder::new().set_json_body(&json)?.build()
+        } else {
+            HttpResponseBuilder::new()
+                .set_status(HttpStatusCode::BadRequest)
+                .build()
+        }
     }
 
     fn get_user_info(_request: &HttpRequest, routing_data: &RoutingData) -> Result<HttpResponse> {
         let id = routing_data
-            .get_value("id")
+            .get_str_value("id")
             .unwrap()
             .unwrap_or(String::new());
 
         let info_field = routing_data
-            .get_value("field")
+            .get_str_value("field")
             .unwrap()
             .unwrap_or(String::new());
 
@@ -504,6 +516,39 @@ mod tests {
         let response = router.handle_request(&request).unwrap();
         let actual_res: Value = serde_json::from_slice(&response.body).unwrap();
         assert_eq!("user_5", actual_res["username"]);
+    }
+
+    #[test]
+    fn test_dynamic_route_value_parse() {
+        let router = Router::new()
+            .get("/users/:id/details", get_user_by_id)
+            .unwrap();
+
+        let request = HttpRequest::from_raw_request(HttpRequestRaw {
+            request_line: "GET /users/7/details HTTP/1.1".to_owned(),
+            headers: Vec::new(),
+            body: vec![],
+        })
+        .unwrap();
+
+        let response = router.handle_request(&request).unwrap();
+        let actual_res: Value = serde_json::from_slice(&response.body).unwrap();
+        assert_eq!(7, actual_res["id"]);
+    }
+
+    #[test]
+    fn test_dynamic_route_no_value() {
+        let router = Router::new().get("/users/:id", get_user_by_id).unwrap();
+
+        let request = HttpRequest::from_raw_request(HttpRequestRaw {
+            request_line: "GET /users HTTP/1.1".to_owned(),
+            headers: Vec::new(),
+            body: vec![],
+        })
+        .unwrap();
+
+        let response = router.handle_request(&request).unwrap();
+        assert_eq!(HttpStatusCode::BadRequest.to_string(), response.status);
     }
 
     #[test]
