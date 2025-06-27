@@ -50,7 +50,7 @@ impl HttpRequest {
             .iter()
             .filter(|header| header.name == "Cookie")
             .map(|header| header.value.to_owned())
-            .map(|cookie_def| HttpCookie::from_cookie_line(&cookie_def).unwrap())
+            .flat_map(|cookie_def| HttpCookie::from_req_header_cookie_line(&cookie_def).unwrap())
             .map(|cookie| (cookie.name.to_owned(), cookie))
             .collect();
 
@@ -284,6 +284,101 @@ mod tests {
             request_line: "POST /users HTTP/1.1".to_owned(),
             headers: vec![],
             body: body_bytes.to_vec(),
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+        };
+
+        let actual = HttpRequest::from_raw_request(raw_request).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_from_raw_request_one_cookie() {
+        let mut cookies: HashMap<String, HttpCookie> = HashMap::new();
+        cookies.insert(String::from("foo"), HttpCookie::new("foo", "foov"));
+
+        let expected = HttpRequest {
+            method: HttpMethod::GET,
+            resource_path: "/users".to_owned(),
+            version: HttpVersion::HTTP1_1,
+            url: "/users".to_owned(),
+            query: HashMap::new(),
+            headers: HashMap::new(),
+            cookies: cookies,
+            body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+        };
+
+        let raw_request = HttpRequestRaw {
+            request_line: "GET /users HTTP/1.1".to_owned(),
+            headers: vec![HttpHeader::new("Cookie", "foo=foov")],
+            body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+        };
+
+        let actual = HttpRequest::from_raw_request(raw_request).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_from_raw_request_multi_cookies() {
+        let mut cookies: HashMap<String, HttpCookie> = HashMap::new();
+        cookies.insert(String::from("foo"), HttpCookie::new("foo", "foov"));
+        cookies.insert(String::from("bar"), HttpCookie::new("bar", "barv"));
+
+        let expected = HttpRequest {
+            method: HttpMethod::GET,
+            resource_path: "/users".to_owned(),
+            version: HttpVersion::HTTP1_1,
+            url: "/users".to_owned(),
+            query: HashMap::new(),
+            headers: HashMap::new(),
+            cookies: cookies,
+            body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+        };
+
+        let raw_request = HttpRequestRaw {
+            request_line: "GET /users HTTP/1.1".to_owned(),
+            headers: vec![
+                HttpHeader::new("Cookie", "foo=foov"),
+                HttpHeader::new("Cookie", "bar=barv"),
+            ],
+            body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+        };
+
+        let actual = HttpRequest::from_raw_request(raw_request).unwrap();
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_from_raw_request_multi_cookies_same_header() {
+        let mut cookies: HashMap<String, HttpCookie> = HashMap::new();
+        cookies.insert(String::from("foo"), HttpCookie::new("foo", "foov"));
+        cookies.insert(String::from("bar"), HttpCookie::new("bar", "barv"));
+
+        let expected = HttpRequest {
+            method: HttpMethod::GET,
+            resource_path: "/users".to_owned(),
+            version: HttpVersion::HTTP1_1,
+            url: "/users".to_owned(),
+            query: HashMap::new(),
+            headers: HashMap::new(),
+            cookies: cookies,
+            body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+        };
+
+        let raw_request = HttpRequestRaw {
+            request_line: "GET /users HTTP/1.1".to_owned(),
+            headers: vec![HttpHeader::new("Cookie", "foo=foov; bar=barv")],
+            body: vec![],
             peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
             local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };

@@ -121,7 +121,26 @@ impl HttpCookie {
         Self::get_attribute(attributes, attribute).is_some()
     }
 
-    pub fn from_cookie_line(line: &str) -> Result<HttpCookie> {
+    pub fn from_req_header_cookie_line(line: &str) -> Result<Vec<HttpCookie>> {
+        let cookie_defs: Vec<_> = line
+            .split(';')
+            .map(|attr| attr.trim())
+            .map(str::to_string)
+            .collect();
+
+        let mut cookies = vec![];
+        for cookie_def in cookie_defs.iter() {
+            let (name, value) = cookie_def
+                .split_once("=")
+                .context("cookie must be of form `name=value`")?;
+            let cookie = HttpCookie::new(name, value);
+            cookies.push(cookie);
+        }
+
+        Ok(cookies)
+    }
+
+    pub fn from_set_cookie_header_line(line: &str) -> Result<HttpCookie> {
         let attributes: Vec<_> = line
             .split(';')
             .map(|attr| attr.trim())
@@ -504,11 +523,11 @@ mod tests {
     #[test]
     fn test_cookie_from_line_missing_name_val_err() {
         let cookie_line = "HttpOnly; Max-Age=3600";
-        assert!(HttpCookie::from_cookie_line(cookie_line).is_err());
+        assert!(HttpCookie::from_req_header_cookie_line(cookie_line).is_err());
     }
 
     #[test]
-    fn test_cookie_from_line_ok() {
+    fn test_cookie_from_set_cookie_header_line_ok() {
         let expires = DateTime::parse_from_rfc2822("Tue, 29 Oct 2024 16:56:32 +0000")
             .unwrap()
             .with_timezone(&Utc);
@@ -526,13 +545,13 @@ mod tests {
         let cookie_line = "foo=bar; Domain=example.com; \
             Expires=Tue, 29 Oct 2024 16:56:32 +0000; HttpOnly; Max-Age=3600; \
             Partitioned; Path=/some/path; Secure; SameSite=Strict";
-        let actual = HttpCookie::from_cookie_line(cookie_line).unwrap();
+        let actual = HttpCookie::from_set_cookie_header_line(cookie_line).unwrap();
 
         assert_eq!(expected, actual);
     }
 
     #[test]
-    fn test_cookie_from_line_unknown_attr_ok() {
+    fn test_cookie_from_set_cookie_header_line_unknown_attr_ok() {
         let expires = DateTime::parse_from_rfc2822("Tue, 29 Oct 2024 16:56:32 +0000")
             .unwrap()
             .with_timezone(&Utc);
@@ -552,7 +571,7 @@ mod tests {
             SomeUnknownAttribute=BAZ; \
             Partitioned; Path=/some/path; Secure; SameSite=Strict";
 
-        let actual = HttpCookie::from_cookie_line(cookie_line).unwrap();
+        let actual = HttpCookie::from_set_cookie_header_line(cookie_line).unwrap();
 
         assert_eq!(expected, actual);
     }
