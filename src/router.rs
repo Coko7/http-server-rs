@@ -342,6 +342,8 @@ impl RoutingData {
 
 #[cfg(test)]
 mod tests {
+    use std::net::IpAddr;
+
     use serde_json::{json, Value};
 
     use crate::http::{HttpRequestRaw, HttpResponseBuilder};
@@ -421,6 +423,8 @@ mod tests {
             request_line: "GET /hello HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -438,6 +442,8 @@ mod tests {
             request_line: "GET /not-a-real-page HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -457,6 +463,8 @@ mod tests {
             request_line: "GET /hello HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -478,6 +486,8 @@ mod tests {
             request_line: "GET /hello HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -493,6 +503,8 @@ mod tests {
             request_line: "POST /user HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -510,6 +522,8 @@ mod tests {
             request_line: "GET /users/5/details HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -528,6 +542,8 @@ mod tests {
             request_line: "GET /users/7/details HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -544,6 +560,8 @@ mod tests {
             request_line: "GET /users HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 
@@ -561,6 +579,8 @@ mod tests {
             request_line: "GET /users/17/info/gender HTTP/1.1".to_owned(),
             headers: Vec::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         })
         .unwrap();
 

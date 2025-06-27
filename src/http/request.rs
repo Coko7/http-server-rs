@@ -1,7 +1,11 @@
 use anyhow::{bail, Context, Result};
 use log::trace;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, net::TcpStream, str::FromStr};
+use std::{
+    collections::HashMap,
+    net::{IpAddr, TcpStream},
+    str::FromStr,
+};
 
 use super::{HttpCookie, HttpHeader, HttpMethod, HttpRequestRaw, HttpVersion, MultipartBody};
 
@@ -17,6 +21,9 @@ pub struct HttpRequest {
     pub headers: HashMap<String, HttpHeader>,
     pub cookies: HashMap<String, HttpCookie>,
     pub body: Vec<u8>,
+
+    pub peer_ip: IpAddr,
+    pub local_ip: IpAddr,
 }
 
 impl HttpRequest {
@@ -63,6 +70,8 @@ impl HttpRequest {
             resource_path,
             query: query_params,
             url,
+            peer_ip: raw_request.peer_ip,
+            local_ip: raw_request.local_ip,
         })
     }
 
@@ -169,12 +178,16 @@ mod tests {
             headers: HashMap::new(),
             cookies: HashMap::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let raw_request = HttpRequestRaw {
             request_line: "GET /api/weather HTTP/1.1".to_owned(),
             headers: vec![],
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let actual = HttpRequest::from_raw_request(raw_request).unwrap();
@@ -196,12 +209,16 @@ mod tests {
             headers: HashMap::new(),
             cookies: HashMap::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let raw_request = HttpRequestRaw {
             request_line: "GET /api/weather?country=France&city=Paris HTTP/1.1".to_owned(),
             headers: vec![],
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let actual = HttpRequest::from_raw_request(raw_request).unwrap();
@@ -229,6 +246,8 @@ mod tests {
             headers: headers.clone(),
             cookies: HashMap::new(),
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let headers_vec: Vec<HttpHeader> = headers.values().cloned().collect();
@@ -236,6 +255,8 @@ mod tests {
             request_line: "GET /api/weather HTTP/1.1".to_owned(),
             headers: headers_vec,
             body: vec![],
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let actual = HttpRequest::from_raw_request(raw_request).unwrap();
@@ -255,12 +276,16 @@ mod tests {
             headers: HashMap::new(),
             cookies: HashMap::new(),
             body: body_bytes.to_vec(),
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let raw_request = HttpRequestRaw {
             request_line: "POST /users HTTP/1.1".to_owned(),
             headers: vec![],
             body: body_bytes.to_vec(),
+            peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
+            local_ip: IpAddr::from_str("0.0.0.0").unwrap(),
         };
 
         let actual = HttpRequest::from_raw_request(raw_request).unwrap();

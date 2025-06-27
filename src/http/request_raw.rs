@@ -2,7 +2,7 @@ use anyhow::Result;
 use log::trace;
 use std::{
     io::{BufRead, BufReader, Read},
-    net::TcpStream,
+    net::{IpAddr, TcpStream},
 };
 
 use super::HttpHeader;
@@ -11,12 +11,17 @@ pub struct HttpRequestRaw {
     pub request_line: String,
     pub headers: Vec<HttpHeader>,
     pub body: Vec<u8>,
+    pub peer_ip: IpAddr,
+    pub local_ip: IpAddr,
 }
 
 impl HttpRequestRaw {
     pub fn from_tcp(stream: &TcpStream) -> Result<HttpRequestRaw> {
         trace!("trying to convert TCP message into HTTP request");
         let mut buf_reader = BufReader::new(stream);
+
+        let peer_ip = stream.peer_addr()?.ip();
+        let local_ip = stream.local_addr()?.ip();
 
         let mut request_line = String::new();
         let mut headers = Vec::new();
@@ -61,6 +66,8 @@ impl HttpRequestRaw {
             request_line,
             headers,
             body,
+            peer_ip,
+            local_ip,
         })
     }
 }
