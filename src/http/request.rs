@@ -377,7 +377,7 @@ mod tests {
 
         let raw_request = HttpRequestRaw {
             request_line: "GET /users HTTP/1.1".to_owned(),
-            headers: vec![HttpHeader::new("Cookie", "foo=foov; bar=barv")],
+            headers: vec![HttpHeader::new("Cookie", " foo=foov ; bar=barv ")],
             body: vec![],
             peer_ip: IpAddr::from_str("0.0.0.0").unwrap(),
             local_ip: IpAddr::from_str("0.0.0.0").unwrap(),

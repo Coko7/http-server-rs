@@ -1,12 +1,12 @@
+use anyhow::{bail, Context, Result};
+use chrono::{DateTime, Utc};
+use log::debug;
+use serde::{Deserialize, Serialize};
 use std::{
     fmt::Display,
     hash::{Hash, Hasher},
     str::FromStr,
 };
-
-use anyhow::{bail, Context, Result};
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Copy)]
 pub enum SameSitePolicy {
@@ -124,17 +124,21 @@ impl HttpCookie {
     pub fn from_req_header_cookie_line(line: &str) -> Result<Vec<HttpCookie>> {
         let cookie_defs: Vec<_> = line
             .split(';')
-            .map(|attr| attr.trim())
+            .map(|cookie_def| cookie_def.trim())
             .map(str::to_string)
             .collect();
 
         let mut cookies = vec![];
         for cookie_def in cookie_defs.iter() {
-            let (name, value) = cookie_def
-                .split_once("=")
-                .context("cookie must be of form `name=value`")?;
-            let cookie = HttpCookie::new(name, value);
-            cookies.push(cookie);
+            if let Some((name, value)) = cookie_def
+                .split_once('=')
+                .map(|(n, v)| (n.trim(), v.trim()))
+            {
+                let cookie = HttpCookie::new(name, value);
+                cookies.push(cookie);
+            } else {
+                debug!("skipping cookie definition because malformed: {cookie_def}");
+            }
         }
 
         Ok(cookies)
@@ -521,9 +525,34 @@ mod tests {
     }
 
     #[test]
-    fn test_cookie_from_line_missing_name_val_err() {
+    fn test_cookie_from_request_multi_cookies_same_header_all_valid() {
+        let mut expected = vec![];
+        expected.push(HttpCookie::new("foo", "foov"));
+        expected.push(HttpCookie::new("bar", "barv"));
+        expected.push(HttpCookie::new("baz", "bazv"));
+
+        let actual =
+            HttpCookie::from_req_header_cookie_line("foo =foov; bar=barv; baz= bazv  ").unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_cookie_from_request_multi_same_header_skips_malformed() {
+        let mut expected = vec![];
+        expected.push(HttpCookie::new("foo", "foov"));
+        expected.push(HttpCookie::new("baz", "bazv"));
+
+        let actual =
+            HttpCookie::from_req_header_cookie_line("foo =foov; b; rrr; baz= bazv  ").unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_cookie_from_set_cookie_header_line_missing_name_val_err() {
         let cookie_line = "HttpOnly; Max-Age=3600";
-        assert!(HttpCookie::from_req_header_cookie_line(cookie_line).is_err());
+        assert!(HttpCookie::from_set_cookie_header_line(cookie_line).is_err());
     }
 
     #[test]
